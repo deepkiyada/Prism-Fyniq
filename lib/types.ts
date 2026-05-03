@@ -8,6 +8,15 @@ export const INVOICE_STATUSES = [
 ] as const;
 
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
+export type AppUserRole = "super_admin" | "user";
+
+export type AppUser = {
+  user_id: string;
+  email: string;
+  role: AppUserRole;
+  created_at?: string;
+  updated_at?: string;
+};
 
 export type CompanySettings = {
   id: number;

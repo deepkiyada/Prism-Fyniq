@@ -16,15 +16,17 @@ const links = [
 
 type AppNavProps = {
   userEmail?: string | null;
+  isSuperAdmin?: boolean;
 };
 
-export function AppNav({ userEmail }: AppNavProps) {
+export function AppNav({ userEmail, isSuperAdmin = false }: AppNavProps) {
   const pathname = usePathname();
+  const navLinks = isSuperAdmin ? [...links, { href: "/users", label: "Users" }] : links;
 
   return (
     <div className="flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <nav className="flex flex-wrap items-center gap-1 rounded-lg border bg-card p-1">
-        {links.map((link) => {
+        {navLinks.map((link) => {
           const isActive = pathname === link.href;
           return (
             <Button

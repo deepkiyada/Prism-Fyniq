@@ -1,17 +1,16 @@
-import Link from "next/link";
-import { loginAction, resendVerificationAction } from "@/app/auth/actions";
+import { loginAction } from "@/app/auth/actions";
 import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BrandMark } from "@/components/brand-mark";
 
 type LoginPageProps = {
   searchParams: Promise<{
     error?: string;
     message?: string;
     next?: string;
-    showResend?: string;
     email?: string;
   }>;
 };
@@ -21,15 +20,18 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const error = params.error;
   const message = params.message;
   const nextPath = params.next ?? "/";
-  const showResend = params.showResend === "1";
   const email = params.email ?? "";
 
   return (
     <main className="mx-auto mt-10 w-full max-w-md">
+      <BrandMark className="mb-4" subtitle="Secure sign-in portal" />
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Sign in</CardTitle>
-          <CardDescription>Use your account to access the invoice dashboard.</CardDescription>
+          <CardDescription>
+            Use your account to access the invoice dashboard. This is an invite-only system. Contact your super admin
+            to get access.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {error ? (
@@ -58,21 +60,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </Button>
           </form>
 
-          {showResend ? (
-            <form action={resendVerificationAction} className="space-y-2 rounded-lg border bg-muted/30 p-3">
-              <p className="text-xs text-muted-foreground">Didn&apos;t get the verification email?</p>
-              <input type="hidden" name="email" value={email} />
-              <Button type="submit" variant="outline" size="sm">
-                Resend verification email
-              </Button>
-            </form>
-          ) : null}
-
           <p className="text-sm text-muted-foreground">
-            Don&apos;t have an account?{" "}
-            <Link className="text-primary hover:underline" href="/auth/signup">
-              Create one
-            </Link>
+            Need access? Ask a super admin to create your account from the Users page.
           </p>
         </CardContent>
       </Card>

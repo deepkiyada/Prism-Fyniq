@@ -28,7 +28,7 @@ export default async function ExportsPage() {
           <CardTitle>Export Center</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Download branded Prism Labs invoices in PDF or DOCX format.
+          Download branded Prism Fyniq invoices in PDF or DOCX format.
         </CardContent>
       </Card>
 

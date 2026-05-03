@@ -61,13 +61,13 @@ export async function getInvoiceExportPayload(invoiceId: string) {
 
 function InvoicePdfTemplate({ payload }: { payload: Awaited<ReturnType<typeof getInvoiceExportPayload>> }) {
   const { invoice, company } = payload;
-  const companyName = company.company_name || "Prism Labs";
+  const companyName = company.company_name || "Prism Fyniq";
 
   return (
     <PdfDocument>
       <Page size="A4" style={styles.page}>
         <View style={styles.brandHeader}>
-          <Text style={styles.brandName}>Prism Labs</Text>
+          <Text style={styles.brandName}>Prism Fyniq</Text>
           <Text style={styles.brandTag}>Invoice & Revenue Operations</Text>
         </View>
 
@@ -134,7 +134,7 @@ function InvoicePdfTemplate({ payload }: { payload: Awaited<ReturnType<typeof ge
         </View>
 
         <Text style={styles.footer}>
-          Thank you for working with Prism Labs. Please include invoice number {invoice.invoice_number} while making payment.
+          Thank you for working with Prism Fyniq. Please include invoice number {invoice.invoice_number} while making payment.
         </Text>
       </Page>
     </PdfDocument>
@@ -152,13 +152,13 @@ export async function buildInvoicePdf(invoiceId: string) {
 
 export async function buildInvoiceDocx(invoiceId: string) {
   const { invoice, company } = await getInvoiceExportPayload(invoiceId);
-  const companyName = company.company_name || "Prism Labs";
+  const companyName = company.company_name || "Prism Fyniq";
 
   const doc = new Document({
     sections: [
       {
         children: [
-          new Paragraph({ text: "Prism Labs" }),
+          new Paragraph({ text: "Prism Fyniq" }),
           new Paragraph({ text: "Invoice & Revenue Operations" }),
           new Paragraph({ text: "" }),
           new Paragraph({ text: `Invoice ${invoice.invoice_number}` }),

@@ -8,7 +8,7 @@ export default async function Home() {
     <main className="flex flex-col gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>Prism Labs Billing Workflow</CardTitle>
+          <CardTitle>Prism Fyniq Billing Workflow</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           <Link href="/clients" className="rounded-lg border p-4 hover:bg-muted/40">

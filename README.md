@@ -1,6 +1,6 @@
-# Prism Labs Invoice Management
+# Prism Fyniq Invoice Management
 
-Prism Labs Invoice Management is a secure internal web application to manage client billing operations end-to-end:
+Prism Fyniq Invoice Management is a secure internal web application to manage client billing operations end-to-end:
 - client records
 - invoice creation and status tracking
 - payment recording
@@ -219,7 +219,7 @@ Before production:
 Use this section when giving the project context to an LLM:
 
 ```yaml
-project_name: Prism Labs Invoice Management
+project_name: Prism Fyniq Invoice Management
 project_type: Internal SaaS-style billing operations app
 frontend:
   framework: Next.js App Router
