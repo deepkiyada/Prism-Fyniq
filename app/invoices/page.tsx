@@ -1,11 +1,11 @@
 import { format } from "date-fns";
 import { createInvoiceAction, triggerRecurringGenerationAction } from "@/app/actions";
 import { InvoiceBoard } from "@/components/invoice-board";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { listClients, listInvoices } from "@/lib/data";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +32,9 @@ export default async function InvoicesPage() {
           <p className="text-sm text-muted-foreground">Create a new invoice, then manage status in Kanban or table view below.</p>
         </div>
         <form action={triggerRecurringGenerationAction}>
-          <Button type="submit" variant="outline">
+          <FormSubmitButton variant="outline" pendingLabel="Generating drafts...">
             Generate this month&apos;s recurring drafts
-          </Button>
+          </FormSubmitButton>
         </form>
       </section>
 
@@ -116,9 +116,9 @@ export default async function InvoicesPage() {
               </div>
             </div>
             <div className="md:col-span-2">
-              <Button type="submit" disabled={clients.length === 0}>
+              <FormSubmitButton disabled={clients.length === 0} pendingLabel="Creating invoice...">
                 Create invoice
-              </Button>
+              </FormSubmitButton>
             </div>
           </form>
         </CardContent>

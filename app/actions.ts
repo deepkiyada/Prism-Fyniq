@@ -9,6 +9,7 @@ import {
   getNextInvoiceNumber,
 } from "@/lib/data";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { setFlash } from "@/lib/flash";
 
 const createClientSchema = z.object({
   name: z.string().min(2),
@@ -57,8 +58,10 @@ export async function createClientAction(formData: FormData) {
     });
 
     if (error) throw error;
+    await setFlash({ type: "success", message: "Client created successfully." });
   } catch (error) {
     logActionError("createClientAction", error);
+    await setFlash({ type: "error", message: "Failed to create client." });
   }
   revalidatePath("/", "layout");
 }
@@ -139,8 +142,10 @@ export async function createInvoiceAction(formData: FormData) {
       })),
     );
     if (lineError) throw lineError;
+    await setFlash({ type: "success", message: "Invoice created successfully." });
   } catch (error) {
     logActionError("createInvoiceAction", error);
+    await setFlash({ type: "error", message: "Failed to create invoice." });
   }
 
   revalidatePath("/", "layout");
@@ -154,8 +159,10 @@ export async function updateInvoiceStatusAction(invoiceId: string, nextStatus: s
       .update({ status: nextStatus })
       .eq("id", invoiceId);
     if (error) throw error;
+    await setFlash({ type: "success", message: `Invoice marked as ${nextStatus.replaceAll("_", " ")}.` });
   } catch (error) {
     logActionError("updateInvoiceStatusAction", error);
+    await setFlash({ type: "error", message: "Failed to update invoice status." });
   }
   revalidatePath("/", "layout");
 }
@@ -197,8 +204,10 @@ export async function recordPaymentAction(formData: FormData) {
       .update({ status })
       .eq("id", invoiceId);
     if (statusError) throw statusError;
+    await setFlash({ type: "success", message: "Payment recorded successfully." });
   } catch (error) {
     logActionError("recordPaymentAction", error);
+    await setFlash({ type: "error", message: "Failed to record payment." });
   }
 
   revalidatePath("/", "layout");
@@ -238,8 +247,10 @@ export async function createScheduleAction(formData: FormData) {
       sort_order: 1,
     });
     if (lineError) throw lineError;
+    await setFlash({ type: "success", message: "Schedule created successfully." });
   } catch (error) {
     logActionError("createScheduleAction", error);
+    await setFlash({ type: "error", message: "Failed to create schedule." });
   }
   revalidatePath("/", "layout");
 }
@@ -247,9 +258,11 @@ export async function createScheduleAction(formData: FormData) {
 export async function triggerRecurringGenerationAction() {
   try {
     await createRecurringInvoicesForCurrentMonth();
+    await setFlash({ type: "success", message: "Recurring drafts generated for this month." });
   } catch (error) {
     // Avoid crashing the UI if Supabase schema/env is not ready yet.
     console.error("Recurring generation failed:", error);
+    await setFlash({ type: "error", message: "Recurring generation failed." });
   }
   revalidatePath("/", "layout");
 }

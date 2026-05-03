@@ -11,6 +11,7 @@ import {
 } from "@dnd-kit/core";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -92,6 +93,7 @@ function DraggableInvoiceCard({ invoice }: { invoice: InvoiceWithDetails }) {
 
 export function InvoiceBoard({ invoices }: Props) {
   const [localInvoices, setLocalInvoices] = useState(invoices);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor));
 
   const grouped = useMemo(() => {
@@ -105,9 +107,11 @@ export function InvoiceBoard({ invoices }: Props) {
   }, [localInvoices]);
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    if (isUpdatingStatus) return;
     const targetStatus = event.over?.id as InvoiceStatus | undefined;
     if (!targetStatus) return;
     const invoiceId = String(event.active.id);
+    const previousStatus = localInvoices.find((invoice) => invoice.id === invoiceId)?.status;
 
     setLocalInvoices((current) =>
       current.map((invoice) =>
@@ -115,11 +119,31 @@ export function InvoiceBoard({ invoices }: Props) {
       ),
     );
 
-    await fetch(`/api/invoices/${invoiceId}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: targetStatus }),
-    });
+    try {
+      setIsUpdatingStatus(true);
+      const response = await fetch(`/api/invoices/${invoiceId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: targetStatus }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update invoice status.");
+      }
+
+      toast.success("Invoice status updated.");
+    } catch {
+      setLocalInvoices((current) =>
+        current.map((invoice) =>
+          invoice.id === invoiceId && previousStatus
+            ? { ...invoice, status: previousStatus }
+            : invoice,
+        ),
+      );
+      toast.error("Could not update invoice status.");
+    } finally {
+      setIsUpdatingStatus(false);
+    }
   };
 
   return (

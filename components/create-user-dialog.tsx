@@ -13,12 +13,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
-export function CreateUserDialog() {
+export function CreateUserDialog({ disabled = false }: { disabled?: boolean }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button>Add New User</Button>
+        <Button disabled={disabled}>Add New User</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -37,13 +38,12 @@ export function CreateUserDialog() {
             <Label htmlFor="password">Temporary password</Label>
             <Input id="password" name="password" type="text" minLength={8} required placeholder="At least 8 characters" />
           </div>
+          <DialogFooter showCloseButton>
+            <FormSubmitButton pendingLabel="Creating user...">
+              Create User
+            </FormSubmitButton>
+          </DialogFooter>
         </form>
-
-        <DialogFooter showCloseButton>
-          <Button type="submit" form="create-user-form">
-            Create User
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -3,8 +3,8 @@ import { requireSuperAdmin } from "@/lib/authz";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { AppUser } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { CreateUserDialog } from "@/components/create-user-dialog";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import {
   Table,
   TableBody,
@@ -24,6 +24,11 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
   await requireSuperAdmin();
   const params = await searchParams;
   const supabase = getSupabaseServerClient();
+  const isAdminConfigReady = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const sanitizedError =
+    params.error && params.error.includes("NEXT_REDIRECT")
+      ? "Action was interrupted. Please retry. If it persists, reload the page."
+      : params.error;
 
   const { data, error } = await supabase
     .from("app_users")
@@ -49,14 +54,17 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
           <CardTitle>User Onboarding</CardTitle>
         </CardHeader>
         <CardContent className="flex items-center justify-between gap-4">
-          <p className="text-sm text-muted-foreground">Create users via modal to keep this page clean and focused.</p>
-          <CreateUserDialog />
+          <p className="text-sm text-muted-foreground">
+            Create users via modal to keep this page clean and focused.
+            {!isAdminConfigReady ? " Configure SUPABASE_SERVICE_ROLE_KEY in .env.local to enable this." : ""}
+          </p>
+          <CreateUserDialog disabled={!isAdminConfigReady} />
         </CardContent>
       </Card>
 
-      {params.error ? (
+      {sanitizedError ? (
         <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {params.error}
+          {sanitizedError}
         </p>
       ) : null}
 
@@ -102,9 +110,9 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
                             name="role"
                             value={user.role === "super_admin" ? "user" : "super_admin"}
                           />
-                          <Button type="submit" variant="outline" size="sm">
+                          <FormSubmitButton variant="outline" size="sm" pendingLabel="Updating...">
                             {user.role === "super_admin" ? "Set as Normal User" : "Make Super Admin"}
-                          </Button>
+                          </FormSubmitButton>
                         </form>
                       </TableCell>
                     </TableRow>

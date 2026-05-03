@@ -1,6 +1,5 @@
 import { format } from "date-fns";
 import { createScheduleAction } from "@/app/actions";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listClients, listSchedules } from "@/lib/data";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 export const dynamic = "force-dynamic";
 
@@ -98,9 +98,9 @@ export default async function SchedulesPage() {
               <Input id="defaultDiscountAmount" name="defaultDiscountAmount" type="number" min={0} step="0.01" defaultValue={0} />
             </div>
             <div className="md:col-span-2">
-              <Button type="submit" disabled={clients.length === 0}>
+              <FormSubmitButton disabled={clients.length === 0} pendingLabel="Saving schedule...">
                 Save schedule
-              </Button>
+              </FormSubmitButton>
             </div>
           </form>
         </CardContent>

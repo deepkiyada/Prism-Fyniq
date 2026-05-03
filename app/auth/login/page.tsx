@@ -1,10 +1,10 @@
 import { loginAction } from "@/app/auth/actions";
 import { PasswordInput } from "@/components/password-input";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BrandMark } from "@/components/brand-mark";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 type LoginPageProps = {
   searchParams: Promise<{
@@ -55,9 +55,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               <Label htmlFor="password">Password</Label>
               <PasswordInput id="password" name="password" autoComplete="current-password" minLength={8} required />
             </div>
-            <Button type="submit" className="w-full">
+            <FormSubmitButton className="w-full" pendingLabel="Signing in...">
               Sign in
-            </Button>
+            </FormSubmitButton>
           </form>
 
           <p className="text-sm text-muted-foreground">

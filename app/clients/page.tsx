@@ -10,8 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
 import { listClients } from "@/lib/data";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +54,7 @@ export default async function ClientsPage() {
               <Input id="currency" name="currency" defaultValue="USD" maxLength={3} />
             </div>
             <div className="md:col-span-2">
-              <Button type="submit">Save client</Button>
+              <FormSubmitButton pendingLabel="Saving client...">Save client</FormSubmitButton>
             </div>
           </form>
         </CardContent>

@@ -1,6 +1,5 @@
 import { format } from "date-fns";
 import { recordPaymentAction } from "@/app/actions";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listInvoices, listPayments } from "@/lib/data";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 export const dynamic = "force-dynamic";
 
@@ -81,9 +81,9 @@ export default async function PaymentsPage() {
               <Input id="note" name="note" placeholder="Optional note" />
             </div>
             <div className="md:col-span-2">
-              <Button type="submit" disabled={billableInvoices.length === 0}>
+              <FormSubmitButton disabled={billableInvoices.length === 0} pendingLabel="Saving payment...">
                 Save payment
-              </Button>
+              </FormSubmitButton>
             </div>
           </form>
         </CardContent>

@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Manrope, Inter } from "next/font/google";
 import { unstable_noStore as noStore } from "next/cache";
+import { Analytics } from "@vercel/analytics/react";
+import { Toaster } from "sonner";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { AppSidebar } from "@/components/app-sidebar";
+import { GlobalFlashToaster } from "@/components/global-flash-toaster";
 import { createServerAuthClient } from "@/lib/supabase/server-auth";
 import { getCurrentUserRole } from "@/lib/authz";
 import {
@@ -93,6 +96,9 @@ export default async function RootLayout({
               {children}
             </div>
           )}
+          <Toaster richColors position="top-right" closeButton />
+          <GlobalFlashToaster />
+          <Analytics />
         </TooltipProvider>
       </body>
     </html>

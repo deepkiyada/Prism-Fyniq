@@ -24,7 +24,17 @@ export async function createUserAction(formData: FormData) {
     redirect("/users?error=Provide a valid email and a password with at least 8 characters.");
   }
 
-  const adminSupabase = getSupabaseAdminClient();
+  let adminSupabase: ReturnType<typeof getSupabaseAdminClient>;
+  try {
+    adminSupabase = getSupabaseAdminClient();
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "User creation failed due to missing admin configuration.";
+    redirect(`/users?error=${encodeURIComponent(message)}`);
+  }
+
   const { data, error } = await adminSupabase.auth.admin.createUser({
     email,
     password,
