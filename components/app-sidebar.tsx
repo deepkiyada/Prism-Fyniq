@@ -4,12 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ChevronsUpDown,
-  CreditCard,
   FileSpreadsheet,
-  FileText,
-  LayoutDashboard,
+  Kanban,
   LogOut,
-  RefreshCcw,
   Shield,
   Users2,
 } from "lucide-react";
@@ -42,11 +39,8 @@ type AppSidebarProps = {
 };
 
 const links = [
-  { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/", label: "Monthly board", icon: Kanban },
   { href: "/clients", label: "Clients", icon: Users2 },
-  { href: "/schedules", label: "Schedules", icon: RefreshCcw },
-  { href: "/invoices", label: "Invoices", icon: FileText },
-  { href: "/payments", label: "Payments", icon: CreditCard },
   { href: "/exports", label: "Exports", icon: FileSpreadsheet },
 ];
 
@@ -78,7 +72,7 @@ export function AppSidebar({
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="mb-3 h-auto px-1 opacity-100 group-data-[collapsible=icon]:opacity-0">
-            <BrandMark subtitle="Invoice Console" />
+            <BrandMark subtitle="Agency Billing" />
           </SidebarGroupLabel>
           <SidebarSeparator className="mb-2" />
           <SidebarGroupLabel className="px-2 text-[11px] uppercase tracking-wide text-muted-foreground group-data-[collapsible=icon]:opacity-0">
@@ -121,9 +115,7 @@ export function AppSidebar({
                 {initials}
               </div>
               <div className="min-w-0 flex-1 text-left group-data-[collapsible=icon]:hidden">
-                <p className="truncate text-sm font-medium leading-tight">
-                  {displayName}
-                </p>
+                <p className="truncate text-sm font-medium leading-tight">{displayName}</p>
                 <p className="truncate text-xs text-muted-foreground">
                   {userEmail ?? "Signed in"}
                 </p>

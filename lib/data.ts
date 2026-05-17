@@ -1,4 +1,5 @@
 import { addDays, endOfMonth, format, isBefore, startOfMonth } from "date-fns";
+import { DEFAULT_CURRENCY, isSupportedCurrency } from "@/lib/currencies";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type {
   Client,
@@ -142,17 +143,21 @@ export async function getNextInvoiceNumber() {
   return `${invoicePrefix}-${String(nextNumber).padStart(4, "0")}`;
 }
 
-export async function createRecurringInvoicesForCurrentMonth() {
+function resolveIssueDate(monthStart: Date, anchorDay: number) {
+  const lastDay = endOfMonth(monthStart).getDate();
+  const day = Math.min(Math.max(anchorDay, 1), 28, lastDay);
+  return new Date(monthStart.getFullYear(), monthStart.getMonth(), day);
+}
+
+export async function createRecurringInvoicesForMonth(periodStart: string, periodEnd: string) {
   const supabase = getSupabaseServerClient();
+  const monthStart = new Date(periodStart);
+  const monthEnd = new Date(periodEnd);
   const today = new Date();
-  const monthStart = startOfMonth(today);
-  const monthEnd = endOfMonth(today);
-  const periodStart = format(monthStart, "yyyy-MM-dd");
-  const periodEnd = format(monthEnd, "yyyy-MM-dd");
 
   const { data: schedules, error: schedulesError } = await supabase
     .from("recurring_schedules")
-    .select("*, schedule_line_items(*)")
+    .select("*, schedule_line_items(*), clients(currency)")
     .eq("active", true)
     .lte("start_date", periodEnd);
 
@@ -161,6 +166,9 @@ export async function createRecurringInvoicesForCurrentMonth() {
   const createdInvoiceIds: string[] = [];
   for (const schedule of schedules ?? []) {
     if (schedule.end_date && isBefore(new Date(schedule.end_date), monthStart)) continue;
+
+    const issueDateObj = resolveIssueDate(monthStart, Number(schedule.anchor_day ?? 1));
+    if (isBefore(today, issueDateObj)) continue;
 
     const { data: existing, error: existingError } = await supabase
       .from("invoices")
@@ -172,8 +180,9 @@ export async function createRecurringInvoicesForCurrentMonth() {
     if (existing && existing.length > 0) continue;
 
     const invoiceNumber = await getNextInvoiceNumber();
+    const issueDate = format(issueDateObj, "yyyy-MM-dd");
     const dueDate = format(
-      addDays(today, Number(schedule.default_payment_terms_days ?? 15)),
+      addDays(issueDateObj, Number(schedule.default_payment_terms_days ?? 15)),
       "yyyy-MM-dd",
     );
     const lineItems = (schedule.schedule_line_items ?? []) as {
@@ -188,6 +197,14 @@ export async function createRecurringInvoicesForCurrentMonth() {
     const discountAmount = Number(schedule.default_discount_amount ?? 0);
     const total = Math.max(0, subtotal - discountAmount);
 
+    const clientCurrency = (schedule.clients as { currency: string } | null)?.currency;
+    const currency =
+      clientCurrency && isSupportedCurrency(clientCurrency)
+        ? clientCurrency
+        : isSupportedCurrency(schedule.currency)
+          ? schedule.currency
+          : DEFAULT_CURRENCY;
+
     const { data: createdInvoice, error: insertError } = await supabase
       .from("invoices")
       .insert({
@@ -195,7 +212,7 @@ export async function createRecurringInvoicesForCurrentMonth() {
         schedule_id: schedule.id,
         invoice_number: invoiceNumber,
         status: "draft",
-        issue_date: format(today, "yyyy-MM-dd"),
+        issue_date: issueDate,
         due_date: dueDate,
         service_period_start: periodStart,
         service_period_end: periodEnd,
@@ -204,7 +221,8 @@ export async function createRecurringInvoicesForCurrentMonth() {
         discount_note: schedule.default_discount_note,
         tax_amount: 0,
         total,
-        currency: schedule.currency ?? "USD",
+        currency,
+        month_closed: false,
       })
       .select("id")
       .single();
@@ -227,6 +245,13 @@ export async function createRecurringInvoicesForCurrentMonth() {
   }
 
   return createdInvoiceIds;
+}
+
+export async function createRecurringInvoicesForCurrentMonth() {
+  const today = new Date();
+  const periodStart = format(startOfMonth(today), "yyyy-MM-dd");
+  const periodEnd = format(endOfMonth(today), "yyyy-MM-dd");
+  return createRecurringInvoicesForMonth(periodStart, periodEnd);
 }
 
 export function deriveStatusFromPayments(

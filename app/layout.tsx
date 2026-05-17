@@ -70,23 +70,23 @@ export default async function RootLayout({
         manropeHeading.variable,
       )}
     >
-      <body className="min-h-full bg-background text-foreground">
+      <body className="min-h-full overflow-x-hidden bg-background text-foreground">
         <TooltipProvider>
           {user ? (
-            <SidebarProvider>
+            <SidebarProvider className="overflow-x-hidden">
               <AppSidebar
                 userName={userName}
                 userEmail={user.email}
                 isSuperAdmin={role === "super_admin"}
               />
-              <SidebarInset>
-                <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/70 md:px-6">
+              <SidebarInset className="min-w-0 overflow-x-hidden">
+                <header className="sticky top-0 z-20 flex h-14 w-full shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/70 md:px-6">
                   <SidebarTrigger />
                   <p className="text-sm font-medium text-muted-foreground">
                     Prism Fyniq
                   </p>
                 </header>
-                <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-8">
+                <div className="mx-auto w-full min-w-0 max-w-7xl overflow-x-hidden px-4 py-6 md:px-8">
                   {children}
                 </div>
               </SidebarInset>

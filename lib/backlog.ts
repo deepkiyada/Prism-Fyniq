@@ -1,8 +1,6 @@
 export const phase2Backlog = [
-  "Supabase Auth + RLS",
-  "Email reminders (Resend/SendGrid)",
+  "Client payment reminder emails (Resend/SendGrid) until invoice is paid",
   "CSV export for accountant",
   "Estimates / quotes before invoice",
-  "Multi-currency support",
   "Aging report dashboard",
 ];

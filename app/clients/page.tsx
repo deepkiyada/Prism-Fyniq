@@ -1,4 +1,5 @@
 import { createClientAction } from "@/app/actions";
+import { CurrencySelect } from "@/components/currency-select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,9 +28,15 @@ export default async function ClientsPage() {
 
   return (
     <main className="flex flex-col gap-6">
+      <section>
+        <h1 className="text-xl font-semibold">Clients</h1>
+        <p className="text-sm text-muted-foreground">
+          Register clients before adding monthly services on the billing board.
+        </p>
+      </section>
       <Card>
         <CardHeader>
-          <CardTitle>Step 1: Add Client</CardTitle>
+          <CardTitle>Add client</CardTitle>
         </CardHeader>
         <CardContent>
           <form action={createClientAction} className="grid gap-4 md:grid-cols-2">
@@ -50,8 +57,7 @@ export default async function ClientsPage() {
               <Input id="notes" name="notes" placeholder="Optional note" />
             </div>
             <div>
-              <Label htmlFor="currency">Currency</Label>
-              <Input id="currency" name="currency" defaultValue="USD" maxLength={3} />
+              <CurrencySelect />
             </div>
             <div className="md:col-span-2">
               <FormSubmitButton pendingLabel="Saving client...">Save client</FormSubmitButton>

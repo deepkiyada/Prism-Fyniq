@@ -51,6 +51,8 @@ export type RecurringSchedule = {
   anchor_day: number;
   default_discount_amount: number;
   default_discount_note: string | null;
+  default_payment_terms_days: number;
+  currency: string;
   start_date: string;
   end_date: string | null;
   active: boolean;
@@ -74,8 +76,68 @@ export type Invoice = {
   tax_amount: number;
   total: number;
   currency: string;
+  month_closed?: boolean;
   created_at?: string;
   updated_at?: string;
+};
+
+export const BOARD_STAGES = [
+  "reminder_due",
+  "draft",
+  "sent",
+  "paid",
+  "done",
+] as const;
+
+export type BoardStage = (typeof BOARD_STAGES)[number];
+
+export type ScheduleLineItem = {
+  id: string;
+  schedule_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  sort_order: number;
+};
+
+export type ServiceWithDetails = RecurringSchedule & {
+  client: Client;
+  line_items: ScheduleLineItem[];
+};
+
+export type ReminderBoardCard = {
+  kind: "reminder";
+  id: string;
+  scheduleId: string;
+  clientId: string;
+  clientName: string;
+  serviceTitle: string;
+  currency: string;
+  estimatedTotal: number;
+  anchorDay: number;
+  periodStart: string;
+  periodEnd: string;
+  defaultDiscountAmount: number;
+  defaultDiscountNote: string | null;
+  defaultPaymentTermsDays: number;
+  templateLineItems: { description: string; quantity: number; unit_price: number }[];
+};
+
+export type InvoiceBoardCard = {
+  kind: "invoice";
+  invoice: InvoiceWithDetails;
+  stage: BoardStage;
+};
+
+export type BillingBoardCard = ReminderBoardCard | InvoiceBoardCard;
+
+export type BillingBoardData = {
+  month: string;
+  periodStart: string;
+  periodEnd: string;
+  cards: BillingBoardCard[];
+  clients: Client[];
+  services: ServiceWithDetails[];
 };
 
 export type InvoiceLineItem = {
