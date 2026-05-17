@@ -31,7 +31,7 @@ export default async function ClientsPage() {
       <section>
         <h1 className="text-xl font-semibold">Clients</h1>
         <p className="text-sm text-muted-foreground">
-          Register clients before adding monthly services on the billing board.
+          Register clients before adding invoices on the billing board.
         </p>
       </section>
       <Card>

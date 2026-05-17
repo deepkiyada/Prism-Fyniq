@@ -82,7 +82,7 @@ export type Invoice = {
 };
 
 export const BOARD_STAGES = [
-  "reminder_due",
+  "ongoing_services",
   "draft",
   "sent",
   "paid",
@@ -105,13 +105,13 @@ export type ServiceWithDetails = RecurringSchedule & {
   line_items: ScheduleLineItem[];
 };
 
-export type ReminderBoardCard = {
-  kind: "reminder";
+export type OngoingServiceCard = {
+  kind: "ongoing";
   id: string;
   scheduleId: string;
   clientId: string;
   clientName: string;
-  serviceTitle: string;
+  invoiceName: string;
   currency: string;
   estimatedTotal: number;
   anchorDay: number;
@@ -129,7 +129,10 @@ export type InvoiceBoardCard = {
   stage: BoardStage;
 };
 
-export type BillingBoardCard = ReminderBoardCard | InvoiceBoardCard;
+/** @deprecated Use OngoingServiceCard */
+export type ReminderBoardCard = OngoingServiceCard;
+
+export type BillingBoardCard = OngoingServiceCard | InvoiceBoardCard;
 
 export type BillingBoardData = {
   month: string;

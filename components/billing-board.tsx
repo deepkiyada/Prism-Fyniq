@@ -1,43 +1,54 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  closestCenter,
   DndContext,
   DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { FileDown, FileText } from "lucide-react";
+import { FileDown, FileText, GripVertical } from "lucide-react";
 import { toast } from "sonner";
-import { updateInvoiceBoardStageAction } from "@/app/actions";
+import { moveInvoiceToOngoingAction, updateInvoiceBoardStageAction } from "@/app/actions";
 import { CreateServiceDialog } from "@/components/create-service-dialog";
 import { InvoiceDraftSheet } from "@/components/invoice-draft-sheet";
+import { InvoiceEditSheet } from "@/components/invoice-edit-sheet";
 import { RecordPaymentDialog } from "@/components/record-payment-dialog";
+import { ServiceEditSheet } from "@/components/service-edit-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { invoiceToBoardStage } from "@/lib/billing-board";
+import { buildOngoingServiceCard, invoiceToBoardStage } from "@/lib/billing-board";
 import { formatMoney } from "@/lib/format-money";
+import { cn } from "@/lib/utils";
 import type {
   BillingBoardCard,
   BillingBoardData,
   BoardStage,
   InvoiceWithDetails,
-  ReminderBoardCard,
+  OngoingServiceCard,
+  ServiceWithDetails,
 } from "@/lib/types";
-import { FormSubmitButton } from "@/components/form-submit-button";
-import { triggerRecurringGenerationAction } from "@/app/actions";
+
+const ONGOING_DRAG_PREFIX = "ongoing:";
+const INVOICE_DRAG_PREFIX = "invoice:";
 
 const COLUMNS: { key: BoardStage; label: string }[] = [
-  { key: "reminder_due", label: "Reminder due" },
+  { key: "ongoing_services", label: "Ongoing Services" },
   { key: "draft", label: "Draft" },
   { key: "sent", label: "Sent" },
   { key: "paid", label: "Paid" },
@@ -45,8 +56,52 @@ const COLUMNS: { key: BoardStage; label: string }[] = [
 ];
 
 function getCardStage(card: BillingBoardCard): BoardStage {
-  if (card.kind === "reminder") return "reminder_due";
+  if (card.kind === "ongoing") return "ongoing_services";
   return card.stage;
+}
+
+function ongoingDragId(card: OngoingServiceCard) {
+  return `${ONGOING_DRAG_PREFIX}${card.id}`;
+}
+
+function invoiceDragId(invoiceId: string) {
+  return `${INVOICE_DRAG_PREFIX}${invoiceId}`;
+}
+
+function parseDragId(activeId: string) {
+  if (activeId.startsWith(ONGOING_DRAG_PREFIX)) {
+    return { type: "ongoing" as const, id: activeId.slice(ONGOING_DRAG_PREFIX.length) };
+  }
+  if (activeId.startsWith(INVOICE_DRAG_PREFIX)) {
+    return { type: "invoice" as const, id: activeId.slice(INVOICE_DRAG_PREFIX.length) };
+  }
+  return { type: "invoice" as const, id: activeId };
+}
+
+function DragHandle({
+  label,
+  listeners,
+  attributes,
+  setActivatorNodeRef,
+}: {
+  label: string;
+  listeners: ReturnType<typeof useDraggable>["listeners"];
+  attributes: ReturnType<typeof useDraggable>["attributes"];
+  setActivatorNodeRef: ReturnType<typeof useDraggable>["setActivatorNodeRef"];
+}) {
+  return (
+    <button
+      type="button"
+      ref={setActivatorNodeRef}
+      className="mt-0.5 shrink-0 cursor-grab touch-none rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
+      aria-label={label}
+      onClick={(e) => e.stopPropagation()}
+      {...listeners}
+      {...attributes}
+    >
+      <GripVertical className="size-4" />
+    </button>
+  );
 }
 
 type BillingBoardProps = {
@@ -57,33 +112,46 @@ function BoardColumn({
   stage,
   label,
   cards,
+  onEditService,
   onCreateInvoice,
   onRecordPayment,
+  onEditInvoice,
 }: {
   stage: BoardStage;
   label: string;
   cards: BillingBoardCard[];
-  onCreateInvoice: (reminder: ReminderBoardCard) => void;
+  onEditService: (card: OngoingServiceCard) => void;
+  onCreateInvoice: (card: OngoingServiceCard) => void;
   onRecordPayment: (invoice: InvoiceWithDetails) => void;
+  onEditInvoice: (invoice: InvoiceWithDetails) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: stage });
 
   return (
     <div
       ref={setNodeRef}
-      className={`w-[260px] shrink-0 rounded-lg border p-3 ${isOver ? "bg-muted" : "bg-card"}`}
+      className={cn(
+        "flex w-[260px] shrink-0 flex-col rounded-lg border p-3 transition-colors",
+        isOver ? "border-primary/40 bg-primary/5" : "bg-card",
+      )}
     >
-      <p className="mb-3 text-sm font-semibold">
+      <p className="mb-3 shrink-0 text-sm font-semibold">
         {label} ({cards.length})
       </p>
-      <div className="space-y-2">
+      <div className="min-h-[140px] flex-1 space-y-2">
         {cards.map((card) =>
-          card.kind === "reminder" ? (
-            <ReminderCard key={card.id} card={card} onCreateInvoice={onCreateInvoice} />
+          card.kind === "ongoing" ? (
+            <OngoingServiceCardView
+              key={card.id}
+              card={card}
+              onEdit={onEditService}
+              onCreateInvoice={onCreateInvoice}
+            />
           ) : (
             <DraggableInvoiceCard
               key={card.invoice.id}
               invoice={card.invoice}
+              onEdit={onEditInvoice}
               onRecordPayment={onRecordPayment}
             />
           ),
@@ -93,23 +161,58 @@ function BoardColumn({
   );
 }
 
-function ReminderCard({
+function OngoingServiceCardView({
   card,
+  onEdit,
   onCreateInvoice,
 }: {
-  card: ReminderBoardCard;
-  onCreateInvoice: (reminder: ReminderBoardCard) => void;
+  card: OngoingServiceCard;
+  onEdit: (card: OngoingServiceCard) => void;
+  onCreateInvoice: (card: OngoingServiceCard) => void;
 }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } =
+    useDraggable({ id: ongoingDragId(card) });
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.5 : 1,
+  };
+
   return (
-    <Card className="border-dashed">
-      <CardHeader className="p-3 pb-1">
-        <CardTitle className="text-sm">{card.serviceTitle}</CardTitle>
+    <Card
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "border-dashed transition-colors",
+        isDragging && "z-10 shadow-md ring-2 ring-primary/30",
+      )}
+    >
+      <CardHeader className="flex flex-row items-start gap-2 p-3 pb-1">
+        <DragHandle
+          label={`Drag ${card.invoiceName} to another column`}
+          listeners={listeners}
+          attributes={attributes}
+          setActivatorNodeRef={setActivatorNodeRef}
+        />
+        <button
+          type="button"
+          className="min-w-0 flex-1 text-left"
+          onClick={() => onEdit(card)}
+        >
+          <CardTitle className="text-sm leading-snug hover:underline">
+            {card.invoiceName}
+          </CardTitle>
+        </button>
       </CardHeader>
       <CardContent className="space-y-2 p-3 pt-0 text-xs text-muted-foreground">
         <p>{card.clientName}</p>
         <p>{formatMoney(card.currency, card.estimatedTotal)}</p>
         <p>Billing day: {card.anchorDay}</p>
-        <Button type="button" size="sm" className="w-full" onClick={() => onCreateInvoice(card)}>
+        <Button
+          type="button"
+          size="sm"
+          className="w-full"
+          onClick={() => onCreateInvoice(card)}
+        >
           Create invoice
         </Button>
       </CardContent>
@@ -119,31 +222,60 @@ function ReminderCard({
 
 function DraggableInvoiceCard({
   invoice,
+  onEdit,
   onRecordPayment,
 }: {
   invoice: InvoiceWithDetails;
+  onEdit: (invoice: InvoiceWithDetails) => void;
   onRecordPayment: (invoice: InvoiceWithDetails) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: invoice.id,
-  });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } =
+    useDraggable({
+      id: invoiceDragId(invoice.id),
+    });
   const style = {
     transform: CSS.Translate.toString(transform),
-    opacity: isDragging ? 0.6 : 1,
+    opacity: isDragging ? 0.5 : 1,
   };
   const paidSoFar = invoice.payments.reduce((sum, p) => sum + Number(p.amount), 0);
   const isPartial = paidSoFar > 0 && paidSoFar < invoice.total;
 
   return (
-    <Card ref={setNodeRef} style={style} {...listeners} {...attributes} className="cursor-grab">
-      <CardHeader className="p-3 pb-1">
-        <CardTitle className="text-sm">{invoice.invoice_number}</CardTitle>
+    <Card
+      ref={setNodeRef}
+      style={style}
+      className={cn(isDragging && "z-10 shadow-md ring-2 ring-primary/30")}
+    >
+      <CardHeader className="flex flex-row items-start gap-2 p-3 pb-1">
+        <DragHandle
+          label={`Drag ${invoice.invoice_number} to another column`}
+          listeners={listeners}
+          attributes={attributes}
+          setActivatorNodeRef={setActivatorNodeRef}
+        />
+        <button
+          type="button"
+          className="min-w-0 flex-1 text-left"
+          onClick={() => onEdit(invoice)}
+        >
+          <CardTitle className="text-sm leading-snug hover:underline">
+            {invoice.invoice_number}
+          </CardTitle>
+        </button>
       </CardHeader>
       <CardContent className="space-y-2 p-3 pt-0 text-xs">
-        <p className="text-muted-foreground">{invoice.client.name}</p>
-        <p className="font-medium">{formatMoney(invoice.currency, invoice.total)}</p>
-        {isPartial ? <Badge variant="secondary">Partial payment</Badge> : null}
-        {invoice.month_closed ? <Badge variant="outline">Month closed</Badge> : null}
+        <button
+          type="button"
+          className="w-full space-y-2 text-left"
+          onClick={() => onEdit(invoice)}
+        >
+          <p className="text-muted-foreground">{invoice.client.name}</p>
+          <p className="font-medium">{formatMoney(invoice.currency, invoice.total)}</p>
+          <div className="flex flex-wrap gap-1">
+            {isPartial ? <Badge variant="secondary">Partial payment</Badge> : null}
+            {invoice.month_closed ? <Badge variant="outline">Month closed</Badge> : null}
+          </div>
+        </button>
         <div className="flex flex-col gap-1">
           <Button
             type="button"
@@ -159,13 +291,23 @@ function DraggableInvoiceCard({
           </Button>
           <div className="flex gap-1">
             <Button type="button" variant="ghost" size="sm" asChild className="justify-start px-2">
-              <Link href={`/api/invoices/${invoice.id}/pdf`} target="_blank">
+              <Link
+                href={`/api/invoices/${invoice.id}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <FileDown className="size-3.5" />
                 PDF
               </Link>
             </Button>
             <Button type="button" variant="ghost" size="sm" asChild className="justify-start px-2">
-              <Link href={`/api/invoices/${invoice.id}/docx`} target="_blank">
+              <Link
+                href={`/api/invoices/${invoice.id}/docx`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <FileText className="size-3.5" />
                 DOCX
               </Link>
@@ -177,20 +319,76 @@ function DraggableInvoiceCard({
   );
 }
 
-
-
-
 export function BillingBoard({ data }: BillingBoardProps) {
   const router = useRouter();
   const [cards, setCards] = useState(data.cards);
-  const [draftReminder, setDraftReminder] = useState<ReminderBoardCard | null>(null);
+  const [services, setServices] = useState(data.services);
+  const [draftOngoing, setDraftOngoing] = useState<OngoingServiceCard | null>(null);
+  const [editService, setEditService] = useState<ServiceWithDetails | null>(null);
+  const [editInvoice, setEditInvoice] = useState<InvoiceWithDetails | null>(null);
   const [paymentInvoice, setPaymentInvoice] = useState<InvoiceWithDetails | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const [activeDragLabel, setActiveDragLabel] = useState<string | null>(null);
+  const skipBoardSyncRef = useRef(false);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const serviceById = useMemo(
+    () => new Map(services.map((s) => [s.id, s])),
+    [services],
+  );
 
   useEffect(() => {
+    if (skipBoardSyncRef.current) {
+      skipBoardSyncRef.current = false;
+      return;
+    }
     setCards(data.cards);
-  }, [data.cards]);
+    setServices(data.services);
+  }, [data.cards, data.services]);
+
+  const handleInvoiceUpdated = (invoiceCard: Extract<BillingBoardCard, { kind: "invoice" }>) => {
+    skipBoardSyncRef.current = true;
+    setCards((prev) =>
+      prev.map((c) =>
+        c.kind === "invoice" && c.invoice.id === invoiceCard.invoice.id ? invoiceCard : c,
+      ),
+    );
+  };
+
+  const handleInvoiceCreated = (invoiceCard: Extract<BillingBoardCard, { kind: "invoice" }>) => {
+    const scheduleId = invoiceCard.invoice.schedule_id;
+    skipBoardSyncRef.current = true;
+    setCards((prev) => {
+      const withoutOngoingOrDuplicate = prev.filter((c) => {
+        if (c.kind === "invoice" && c.invoice.id === invoiceCard.invoice.id) return false;
+        if (scheduleId && c.kind === "ongoing" && c.scheduleId === scheduleId) return false;
+        return true;
+      });
+      return [...withoutOngoingOrDuplicate, invoiceCard];
+    });
+  };
+
+  const handleServiceCreated = (card: OngoingServiceCard, service: ServiceWithDetails) => {
+    skipBoardSyncRef.current = true;
+    setServices((prev) => {
+      if (prev.some((s) => s.id === service.id)) return prev;
+      return [...prev, service];
+    });
+    setCards((prev) => {
+      const hasInvoice = prev.some(
+        (c) => c.kind === "invoice" && c.invoice.schedule_id === card.scheduleId,
+      );
+      const hasOngoing = prev.some(
+        (c) => c.kind === "ongoing" && c.scheduleId === card.scheduleId,
+      );
+      if (hasInvoice || hasOngoing) return prev;
+      return [...prev, card];
+    });
+  };
 
   const grouped = useMemo(() => {
     return COLUMNS.reduce(
@@ -202,20 +400,104 @@ export function BillingBoard({ data }: BillingBoardProps) {
     );
   }, [cards]);
 
+  const handleEditService = (card: OngoingServiceCard) => {
+    const service = serviceById.get(card.scheduleId);
+    if (service) setEditService(service);
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const parsed = parseDragId(String(event.active.id));
+    if (parsed.type === "ongoing") {
+      const card = cards.find(
+        (c): c is OngoingServiceCard => c.kind === "ongoing" && c.id === parsed.id,
+      );
+      setActiveDragLabel(card?.invoiceName ?? "Invoice");
+      return;
+    }
+    const invoiceCard = cards.find(
+      (c): c is Extract<BillingBoardCard, { kind: "invoice" }> =>
+        c.kind === "invoice" && c.invoice.id === parsed.id,
+    );
+    setActiveDragLabel(invoiceCard?.invoice.invoice_number ?? "Invoice");
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveDragLabel(null);
     if (isUpdating) return;
     const targetStage = event.over?.id as BoardStage | undefined;
-    const invoiceId = String(event.active.id);
-    if (!targetStage || targetStage === "reminder_due") return;
+    if (!targetStage) return;
 
+    const parsed = parseDragId(String(event.active.id));
+
+    if (parsed.type === "ongoing") {
+      const ongoingCard = cards.find(
+        (c): c is OngoingServiceCard => c.kind === "ongoing" && c.id === parsed.id,
+      );
+      if (!ongoingCard) return;
+
+      if (targetStage === "ongoing_services") return;
+
+      if (targetStage === "draft") {
+        setDraftOngoing(ongoingCard);
+        toast.message("Complete the invoice draft to add it to Draft");
+        return;
+      }
+
+      toast.error("Drag to Draft to create an invoice first.");
+      return;
+    }
+
+    const invoiceId = parsed.id;
     const invoiceCard = cards.find(
       (c): c is Extract<BillingBoardCard, { kind: "invoice" }> =>
         c.kind === "invoice" && c.invoice.id === invoiceId,
     );
     if (!invoiceCard) return;
 
+    if (targetStage === "ongoing_services") {
+      const scheduleId = invoiceCard.invoice.schedule_id;
+      if (!scheduleId) {
+        toast.error("Only service invoices can be moved to Ongoing Services.");
+        return;
+      }
+      const service = serviceById.get(scheduleId);
+      if (!service) {
+        toast.error("Service not found for this invoice.");
+        return;
+      }
+
+      const ongoingCard = buildOngoingServiceCard(
+        service,
+        data.periodStart,
+        data.periodEnd,
+      );
+      const previousCards = cards;
+
+      skipBoardSyncRef.current = true;
+      setCards((current) => [
+        ...current.filter(
+          (c) => !(c.kind === "invoice" && c.invoice.id === invoiceId),
+        ),
+        ongoingCard,
+      ]);
+
+      try {
+        setIsUpdating(true);
+        await moveInvoiceToOngoingAction(invoiceId);
+        toast.success("Moved to Ongoing Services");
+        router.refresh();
+      } catch {
+        setCards(previousCards);
+        toast.error("Could not move to Ongoing Services.");
+      } finally {
+        setIsUpdating(false);
+      }
+      return;
+    }
+
     const previousStage = invoiceToBoardStage(invoiceCard.invoice);
 
+    skipBoardSyncRef.current = true;
     setCards((current) =>
       current.map((card) =>
         card.kind === "invoice" && card.invoice.id === invoiceId
@@ -260,18 +542,39 @@ export function BillingBoard({ data }: BillingBoardProps) {
 
   return (
     <BoardShell>
-      <BoardHeader data={data} />
+      <BoardHeader
+        data={data}
+        onServiceCreated={handleServiceCreated}
+      />
+      <ServiceEditSheet
+        service={editService}
+        open={Boolean(editService)}
+        onOpenChange={(open) => !open && setEditService(null)}
+      />
       <InvoiceDraftSheet
-        reminder={draftReminder}
-        open={Boolean(draftReminder)}
-        onOpenChange={(open) => !open && setDraftReminder(null)}
+        ongoing={draftOngoing}
+        open={Boolean(draftOngoing)}
+        onOpenChange={(open) => !open && setDraftOngoing(null)}
+        onInvoiceCreated={handleInvoiceCreated}
+      />
+      <InvoiceEditSheet
+        invoice={editInvoice}
+        open={Boolean(editInvoice)}
+        onOpenChange={(open) => !open && setEditInvoice(null)}
+        onInvoiceUpdated={handleInvoiceUpdated}
       />
       <RecordPaymentDialog
         invoice={paymentInvoice}
         open={Boolean(paymentInvoice)}
         onOpenChange={(open) => !open && setPaymentInvoice(null)}
       />
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => setActiveDragLabel(null)}
+      >
         <BoardColumns>
           {COLUMNS.map((column) => (
             <BoardColumn
@@ -279,33 +582,49 @@ export function BillingBoard({ data }: BillingBoardProps) {
               stage={column.key}
               label={column.label}
               cards={grouped[column.key] ?? []}
-              onCreateInvoice={setDraftReminder}
+              onEditService={handleEditService}
+              onCreateInvoice={setDraftOngoing}
               onRecordPayment={setPaymentInvoice}
+              onEditInvoice={setEditInvoice}
             />
           ))}
         </BoardColumns>
+        <DragOverlay dropAnimation={null}>
+          {activeDragLabel ? (
+            <Card className="w-[240px] cursor-grabbing border-dashed shadow-lg">
+              <CardHeader className="p-3 pb-1">
+                <CardTitle className="text-sm">{activeDragLabel}</CardTitle>
+              </CardHeader>
+            </Card>
+          ) : null}
+        </DragOverlay>
       </DndContext>
     </BoardShell>
   );
 }
 
 function BoardShell({ children }: { children: React.ReactNode }) {
-  const El = "div";
-  return <El className="flex min-w-0 max-w-full flex-col gap-6">{children}</El>;
+  return <div className="flex min-w-0 max-w-full flex-col gap-6">{children}</div>;
 }
 
-function BoardHeader({ data }: { data: BillingBoardData }) {
+function BoardHeader({
+  data,
+  onServiceCreated,
+}: {
+  data: BillingBoardData;
+  onServiceCreated: (card: OngoingServiceCard, service: ServiceWithDetails) => void;
+}) {
   const router = useRouter();
-  const El = "div";
   return (
-    <El className="flex min-w-0 flex-wrap items-end justify-between gap-4">
-      <El className="min-w-0">
+    <div className="flex min-w-0 flex-wrap items-end justify-between gap-4">
+      <div className="min-w-0">
         <h1 className="text-xl font-semibold">Monthly billing board</h1>
         <p className="text-sm text-muted-foreground">
-          Track retainers from reminder through payment for each client service.
+          New invoices appear in Ongoing Services right away — create drafts and track them
+          through payment.
         </p>
-      </El>
-      <El className="flex flex-wrap items-center gap-2">
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
         <form
           className="flex items-center gap-2"
           onSubmit={(e) => {
@@ -319,15 +638,13 @@ function BoardHeader({ data }: { data: BillingBoardData }) {
             Go
           </Button>
         </form>
-        <form action={triggerRecurringGenerationAction}>
-          <input type="hidden" name="month" value={data.month} />
-          <FormSubmitButton variant="outline" size="sm" pendingLabel="Generating...">
-            Generate drafts
-          </FormSubmitButton>
-        </form>
-        <CreateServiceDialog clients={data.clients} />
-      </El>
-    </El>
+        <CreateServiceDialog
+          clients={data.clients}
+          month={data.month}
+          onServiceCreated={onServiceCreated}
+        />
+      </div>
+    </div>
   );
 }
 

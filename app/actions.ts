@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { addDays, format } from "date-fns";
 import { z } from "zod";
-import { parseBoardMonth } from "@/lib/billing-board";
+import {
+  buildOngoingServiceCard,
+  parseBoardMonth,
+  serviceOverlapsBoardMonth,
+} from "@/lib/billing-board";
 import {
   createRecurringInvoicesForCurrentMonth,
   createRecurringInvoicesForMonth,
@@ -17,8 +21,17 @@ import {
 } from "@/lib/currencies";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { setFlash } from "@/lib/flash";
-import { boardStageToStatus } from "@/lib/billing-board";
-import type { BoardStage } from "@/lib/types";
+import { boardStageToStatus, invoiceToBoardStage } from "@/lib/billing-board";
+import type {
+  BoardStage,
+  Client,
+  Invoice,
+  InvoiceBoardCard,
+  InvoiceStatus,
+  InvoiceWithDetails,
+  OngoingServiceCard,
+  ServiceWithDetails,
+} from "@/lib/types";
 
 const lineItemSchema = z.object({
   description: z.string().min(1),
@@ -176,7 +189,46 @@ export async function createInvoiceAction(formData: FormData) {
   revalidatePath("/", "layout");
 }
 
-export async function createInvoiceFromServiceAction(formData: FormData) {
+async function fetchInvoiceBoardCard(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  invoiceId: string,
+): Promise<InvoiceBoardCard | null> {
+  const { data: row, error } = await supabase
+    .from("invoices")
+    .select("*, clients(*), invoice_line_items(*), payments(*)")
+    .eq("id", invoiceId)
+    .neq("status", "void")
+    .single();
+  if (error || !row) return null;
+
+  const normalized = row as {
+    clients: Client;
+    invoice_line_items: InvoiceWithDetails["line_items"] | null;
+    payments: InvoiceWithDetails["payments"] | null;
+  } & Invoice;
+
+  const invoice: InvoiceWithDetails = {
+    ...normalized,
+    client: normalized.clients,
+    line_items: normalized.invoice_line_items ?? [],
+    payments: normalized.payments ?? [],
+  };
+
+  return {
+    kind: "invoice",
+    invoice,
+    stage: invoiceToBoardStage(invoice),
+  };
+}
+
+export type CreateInvoiceFromServiceResult = {
+  ok: boolean;
+  invoiceCard?: InvoiceBoardCard;
+};
+
+export async function createInvoiceFromServiceAction(
+  formData: FormData,
+): Promise<CreateInvoiceFromServiceResult> {
   try {
     const scheduleId = getFormString(formData, "scheduleId");
     const periodStart = getFormString(formData, "periodStart");
@@ -192,17 +244,22 @@ export async function createInvoiceFromServiceAction(formData: FormData) {
       .select("id")
       .eq("schedule_id", scheduleId)
       .eq("service_period_start", periodStart)
+      .neq("status", "void")
       .limit(1);
     if (existingError) throw existingError;
     if (existing && existing.length > 0) {
-      await setFlash({ type: "error", message: "Invoice already exists for this service and month." });
+      const invoiceCard = await fetchInvoiceBoardCard(supabase, existing[0].id);
+      await setFlash({
+        type: "error",
+        message: "Invoice already exists for this service and month.",
+      });
       revalidatePath("/", "layout");
-      return;
+      return { ok: false, invoiceCard: invoiceCard ?? undefined };
     }
 
     const { data: schedule, error: scheduleError } = await supabase
       .from("recurring_schedules")
-      .select("*, clients(currency)")
+      .select("*, clients(*)")
       .eq("id", scheduleId)
       .single();
     if (scheduleError) throw scheduleError;
@@ -262,12 +319,83 @@ export async function createInvoiceFromServiceAction(formData: FormData) {
     );
     if (lineError) throw lineError;
 
+    let invoiceCard = await fetchInvoiceBoardCard(supabase, inserted.id);
+    if (!invoiceCard) {
+      const client = schedule.clients as Client;
+      invoiceCard = {
+        kind: "invoice",
+        stage: "draft",
+        invoice: {
+          id: inserted.id,
+          client_id: schedule.client_id,
+          schedule_id: scheduleId,
+          invoice_number: invoiceNumber,
+          status: "draft",
+          issue_date: today,
+          due_date: dueDate,
+          service_period_start: periodStart,
+          service_period_end: periodEnd,
+          subtotal,
+          discount_amount: discountAmount,
+          discount_note: discountNote || schedule.default_discount_note || null,
+          tax_amount: 0,
+          total,
+          currency,
+          month_closed: false,
+          client,
+          line_items: lineItems.map((item, idx) => ({
+            id: `temp-${idx}`,
+            invoice_id: inserted.id,
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+            line_discount_amount: 0,
+            sort_order: idx + 1,
+          })),
+          payments: [],
+        },
+      };
+    }
+
     await setFlash({ type: "success", message: "Invoice drafted for this service." });
+    revalidatePath("/", "layout");
+    return { ok: true, invoiceCard };
   } catch (error) {
     logActionError("createInvoiceFromServiceAction", error);
     await setFlash({ type: "error", message: "Failed to create invoice from service." });
+    revalidatePath("/", "layout");
+    return { ok: false };
   }
+}
 
+export async function moveInvoiceToOngoingAction(invoiceId: string) {
+  try {
+    const supabase = getSupabaseServerClient();
+    const { data: invoice, error: fetchError } = await supabase
+      .from("invoices")
+      .select("schedule_id")
+      .eq("id", invoiceId)
+      .single();
+    if (fetchError) throw fetchError;
+    if (!invoice?.schedule_id) {
+      await setFlash({
+        type: "error",
+        message: "Only service invoices can be moved to Ongoing Services.",
+      });
+      return;
+    }
+
+    const { error } = await supabase
+      .from("invoices")
+      .update({ status: "void", month_closed: false })
+      .eq("id", invoiceId);
+    if (error) throw error;
+
+    await setFlash({ type: "success", message: "Moved back to Ongoing Services." });
+  } catch (error) {
+    logActionError("moveInvoiceToOngoingAction", error);
+    await setFlash({ type: "error", message: "Failed to move to Ongoing Services." });
+  }
   revalidatePath("/", "layout");
 }
 
@@ -307,6 +435,73 @@ export async function updateInvoiceStatusAction(invoiceId: string, nextStatus: s
     await setFlash({ type: "error", message: "Failed to update invoice status." });
   }
   revalidatePath("/", "layout");
+}
+
+export type UpdateInvoiceResult = {
+  ok: boolean;
+  invoiceCard?: InvoiceBoardCard;
+};
+
+export async function updateInvoiceAction(formData: FormData): Promise<UpdateInvoiceResult> {
+  try {
+    const supabase = getSupabaseServerClient();
+    const invoiceId = getFormString(formData, "invoiceId");
+    const lineItems = parseLineItems(formData);
+    const discountAmount = Number(formData.get("discountAmount") ?? 0);
+    const discountNote = getFormString(formData, "discountNote");
+    const issueDate = getFormString(formData, "issueDate");
+    const dueDate = getFormString(formData, "dueDate");
+
+    const subtotal = lineItems.reduce(
+      (sum, item) => sum + item.quantity * item.unitPrice,
+      0,
+    );
+    const total = Math.max(0, subtotal - discountAmount);
+
+    const { error } = await supabase
+      .from("invoices")
+      .update({
+        subtotal,
+        discount_amount: discountAmount,
+        discount_note: discountNote || null,
+        tax_amount: 0,
+        total,
+        issue_date: issueDate,
+        due_date: dueDate,
+      })
+      .eq("id", invoiceId);
+    if (error) throw error;
+
+    const { error: deleteError } = await supabase
+      .from("invoice_line_items")
+      .delete()
+      .eq("invoice_id", invoiceId);
+    if (deleteError) throw deleteError;
+
+    const { error: lineError } = await supabase.from("invoice_line_items").insert(
+      lineItems.map((item, idx) => ({
+        invoice_id: invoiceId,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+        line_discount_amount: 0,
+        sort_order: idx + 1,
+      })),
+    );
+    if (lineError) throw lineError;
+
+    const invoiceCard = await fetchInvoiceBoardCard(supabase, invoiceId);
+    if (!invoiceCard) throw new Error("Failed to load updated invoice.");
+
+    await setFlash({ type: "success", message: "Invoice updated." });
+    revalidatePath("/", "layout");
+    return { ok: true, invoiceCard };
+  } catch (error) {
+    logActionError("updateInvoiceAction", error);
+    await setFlash({ type: "error", message: "Failed to update invoice." });
+    revalidatePath("/", "layout");
+    return { ok: false };
+  }
 }
 
 export async function recordPaymentAction(formData: FormData) {
@@ -355,12 +550,21 @@ export async function recordPaymentAction(formData: FormData) {
   revalidatePath("/", "layout");
 }
 
-export async function createServiceAction(formData: FormData) {
+export type CreateServiceResult = {
+  ok: boolean;
+  card?: OngoingServiceCard;
+  service?: ServiceWithDetails;
+};
+
+export async function createServiceAction(formData: FormData): Promise<CreateServiceResult> {
   try {
     const supabase = getSupabaseServerClient();
     const clientId = getFormString(formData, "clientId");
     const lineItems = parseLineItems(formData);
     const currency = await getClientCurrency(clientId);
+    const month =
+      getFormString(formData, "month") || format(new Date(), "yyyy-MM");
+    const { periodStart, periodEnd } = parseBoardMonth(month);
 
     const { data: schedule, error } = await supabase
       .from("recurring_schedules")
@@ -391,10 +595,97 @@ export async function createServiceAction(formData: FormData) {
       })),
     );
     if (lineError) throw lineError;
-    await setFlash({ type: "success", message: "Monthly service created successfully." });
+
+    const { data: row, error: fetchError } = await supabase
+      .from("recurring_schedules")
+      .select("*, clients(*), schedule_line_items(*)")
+      .eq("id", schedule.id)
+      .single();
+    if (fetchError) throw fetchError;
+
+    const normalized = row as {
+      clients: Client;
+      schedule_line_items: ServiceWithDetails["line_items"] | null;
+    } & ServiceWithDetails;
+
+    const service: ServiceWithDetails = {
+      ...normalized,
+      client: normalized.clients,
+      line_items: (normalized.schedule_line_items ?? []).sort(
+        (a, b) => a.sort_order - b.sort_order,
+      ),
+    };
+
+    let card: OngoingServiceCard | undefined;
+    if (
+      service.active &&
+      serviceOverlapsBoardMonth(
+        periodStart,
+        periodEnd,
+        service.start_date,
+        service.end_date,
+      )
+    ) {
+      card = buildOngoingServiceCard(service, periodStart, periodEnd);
+    }
+
+    await setFlash({ type: "success", message: "Invoice created successfully." });
+    revalidatePath("/", "layout");
+    return { ok: true, card, service };
   } catch (error) {
     logActionError("createServiceAction", error);
-    await setFlash({ type: "error", message: "Failed to create service." });
+    await setFlash({ type: "error", message: "Failed to create invoice." });
+    revalidatePath("/", "layout");
+    return { ok: false };
+  }
+}
+
+export async function updateServiceAction(formData: FormData) {
+  try {
+    const supabase = getSupabaseServerClient();
+    const scheduleId = getFormString(formData, "scheduleId");
+    const lineItems = parseLineItems(formData);
+    const active = getFormString(formData, "active") === "true";
+
+    const { error } = await supabase
+      .from("recurring_schedules")
+      .update({
+        title: getFormString(formData, "title"),
+        anchor_day: Number(formData.get("anchorDay") ?? 1),
+        default_discount_amount: Number(formData.get("defaultDiscountAmount") ?? 0),
+        default_discount_note: getFormString(formData, "defaultDiscountNote") || null,
+        start_date: getFormString(formData, "startDate"),
+        end_date: getFormString(formData, "endDate") || null,
+        active,
+        default_payment_terms_days: Number(formData.get("paymentTermsDays") ?? 15),
+      })
+      .eq("id", scheduleId);
+    if (error) throw error;
+
+    const { error: deleteError } = await supabase
+      .from("schedule_line_items")
+      .delete()
+      .eq("schedule_id", scheduleId);
+    if (deleteError) throw deleteError;
+
+    const { error: lineError } = await supabase.from("schedule_line_items").insert(
+      lineItems.map((item, idx) => ({
+        schedule_id: scheduleId,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+        sort_order: idx + 1,
+      })),
+    );
+    if (lineError) throw lineError;
+
+    await setFlash({
+      type: "success",
+      message: active ? "Invoice updated." : "Invoice marked inactive.",
+    });
+  } catch (error) {
+    logActionError("updateServiceAction", error);
+    await setFlash({ type: "error", message: "Failed to update invoice." });
   }
   revalidatePath("/", "layout");
 }

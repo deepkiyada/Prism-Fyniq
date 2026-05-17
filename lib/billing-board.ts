@@ -14,7 +14,7 @@ import type {
   Client,
   Invoice,
   InvoiceWithDetails,
-  ReminderBoardCard,
+  OngoingServiceCard,
   ServiceWithDetails,
 } from "@/lib/types";
 import { listClients } from "@/lib/data";
@@ -51,32 +51,22 @@ export function boardStageToStatus(stage: BoardStage): string {
   }
 }
 
-function shouldIncludeReminder(
+/** True when the service billing period overlaps the board month. */
+export function serviceOverlapsBoardMonth(
   periodStart: string,
   periodEnd: string,
-  anchorDay: number,
   scheduleStart: string,
   scheduleEnd: string | null,
 ) {
-  const today = new Date();
-  const monthStart = new Date(periodStart);
-  const monthEnd = new Date(periodEnd);
+  const monthStart = parse(periodStart, "yyyy-MM-dd", new Date());
+  const monthEnd = parse(periodEnd, "yyyy-MM-dd", new Date());
+  const start = parse(scheduleStart, "yyyy-MM-dd", new Date());
+  const end = scheduleEnd ? parse(scheduleEnd, "yyyy-MM-dd", new Date()) : null;
 
-  if (isAfter(monthStart, startOfMonth(today))) return false;
-  if (scheduleEnd && isBefore(new Date(scheduleEnd), monthStart)) return false;
-  if (isAfter(new Date(scheduleStart), monthEnd)) return false;
+  if (end && isBefore(end, monthStart)) return false;
+  if (isAfter(start, monthEnd)) return false;
 
-  const selectedIsCurrentMonth =
-    format(monthStart, "yyyy-MM") === format(startOfMonth(today), "yyyy-MM");
-
-  if (!selectedIsCurrentMonth) return true;
-
-  const anchorDate = new Date(
-    monthStart.getFullYear(),
-    monthStart.getMonth(),
-    Math.min(anchorDay, monthEnd.getDate()),
-  );
-  return !isBefore(today, anchorDate);
+  return true;
 }
 
 function estimateScheduleTotal(
@@ -88,6 +78,39 @@ function estimateScheduleTotal(
     0,
   );
   return Math.max(0, subtotal - Number(discountAmount ?? 0));
+}
+
+export function buildOngoingServiceCard(
+  service: ServiceWithDetails,
+  periodStart: string,
+  periodEnd: string,
+): OngoingServiceCard {
+  const templateLineItems = service.line_items.map((item) => ({
+    description: item.description,
+    quantity: Number(item.quantity),
+    unit_price: Number(item.unit_price),
+  }));
+
+  return {
+    kind: "ongoing",
+    id: `${service.id}:${periodStart}`,
+    scheduleId: service.id,
+    clientId: service.client_id,
+    clientName: service.client.name,
+    invoiceName: service.title,
+    currency: service.client.currency,
+    estimatedTotal: estimateScheduleTotal(
+      templateLineItems,
+      service.default_discount_amount,
+    ),
+    anchorDay: service.anchor_day,
+    periodStart,
+    periodEnd,
+    defaultDiscountAmount: Number(service.default_discount_amount ?? 0),
+    defaultDiscountNote: service.default_discount_note,
+    defaultPaymentTermsDays: service.default_payment_terms_days,
+    templateLineItems,
+  };
 }
 
 export async function getBillingBoard(month: string): Promise<BillingBoardData> {
@@ -160,10 +183,9 @@ export async function getBillingBoard(month: string): Promise<BillingBoardData> 
     }
 
     if (
-      !shouldIncludeReminder(
+      !serviceOverlapsBoardMonth(
         periodStart,
         periodEnd,
-        service.anchor_day,
         service.start_date,
         service.end_date,
       )
@@ -171,33 +193,7 @@ export async function getBillingBoard(month: string): Promise<BillingBoardData> 
       continue;
     }
 
-    const templateLineItems = service.line_items.map((item) => ({
-      description: item.description,
-      quantity: Number(item.quantity),
-      unit_price: Number(item.unit_price),
-    }));
-
-    const reminder: ReminderBoardCard = {
-      kind: "reminder",
-      id: `${service.id}:${periodStart}`,
-      scheduleId: service.id,
-      clientId: service.client_id,
-      clientName: service.client.name,
-      serviceTitle: service.title,
-      currency: service.client.currency,
-      estimatedTotal: estimateScheduleTotal(
-        templateLineItems,
-        service.default_discount_amount,
-      ),
-      anchorDay: service.anchor_day,
-      periodStart,
-      periodEnd,
-      defaultDiscountAmount: Number(service.default_discount_amount ?? 0),
-      defaultDiscountNote: service.default_discount_note,
-      defaultPaymentTermsDays: service.default_payment_terms_days,
-      templateLineItems,
-    };
-    cards.push(reminder);
+    cards.push(buildOngoingServiceCard(service, periodStart, periodEnd));
   }
 
   return {

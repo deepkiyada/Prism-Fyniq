@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { Plus } from "lucide-react";
 import { createServiceAction } from "@/app/actions";
@@ -16,13 +17,20 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FormSubmitButton } from "@/components/form-submit-button";
-import type { Client } from "@/lib/types";
+import type { Client, OngoingServiceCard, ServiceWithDetails } from "@/lib/types";
 
 type CreateServiceDialogProps = {
   clients: Client[];
+  month: string;
+  onServiceCreated?: (card: OngoingServiceCard, service: ServiceWithDetails) => void;
 };
 
-export function CreateServiceDialog({ clients }: CreateServiceDialogProps) {
+export function CreateServiceDialog({
+  clients,
+  month,
+  onServiceCreated,
+}: CreateServiceDialogProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [lineItems, setLineItems] = useState<EditableLineItem[]>([
     { description: "Monthly retainer", quantity: 1, unitPrice: 0 },
@@ -34,18 +42,25 @@ export function CreateServiceDialog({ clients }: CreateServiceDialogProps) {
       <DialogTrigger asChild>
         <Button disabled={clients.length === 0}>
           <Plus className="size-4" />
-          Add service
+          Add invoice
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add monthly service</DialogTitle>
+          <DialogTitle>Add invoice</DialogTitle>
         </DialogHeader>
         <form
           action={async (formData) => {
             formData.set("lineItems", JSON.stringify(lineItems));
-            await createServiceAction(formData);
-            setOpen(false);
+            formData.set("month", month);
+            const result = await createServiceAction(formData);
+            if (result.ok) {
+              if (result.card && result.service) {
+                onServiceCreated?.(result.card, result.service);
+              }
+              setOpen(false);
+              router.refresh();
+            }
           }}
           className="grid gap-4"
         >
@@ -69,12 +84,12 @@ export function CreateServiceDialog({ clients }: CreateServiceDialogProps) {
             </select>
           </div>
           <div>
-            <Label htmlFor="title">Service name</Label>
+            <Label htmlFor="title">Invoice name</Label>
             <Input
               id="title"
               name="title"
               required
-              placeholder="Content writing — Acme Corp"
+              placeholder="e.g. Content writing — Acme Corp"
             />
           </div>
           <LineItemsEditor items={lineItems} onChange={setLineItems} />
@@ -113,7 +128,7 @@ export function CreateServiceDialog({ clients }: CreateServiceDialogProps) {
               defaultValue={0}
             />
           </div>
-          <FormSubmitButton pendingLabel="Saving service...">Save service</FormSubmitButton>
+          <FormSubmitButton pendingLabel="Saving...">Save invoice</FormSubmitButton>
         </form>
       </DialogContent>
     </Dialog>

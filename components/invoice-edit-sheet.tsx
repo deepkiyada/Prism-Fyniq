@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { format, parse } from "date-fns";
-import { CalendarDays, FileText, Loader2 } from "lucide-react";
+import { CalendarDays, FileDown, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { createInvoiceFromServiceAction } from "@/app/actions";
+import { updateInvoiceAction } from "@/app/actions";
 import { LineItemsEditor, type EditableLineItem } from "@/components/line-items-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
@@ -19,19 +22,23 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { formatMoney } from "@/lib/format-money";
-import type { InvoiceBoardCard, OngoingServiceCard } from "@/lib/types";
+import type { InvoiceBoardCard, InvoiceWithDetails } from "@/lib/types";
 
-type InvoiceDraftSheetProps = {
-  ongoing: OngoingServiceCard | null;
+type InvoiceEditSheetProps = {
+  invoice: InvoiceWithDetails | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onInvoiceCreated?: (card: InvoiceBoardCard) => void;
+  onInvoiceUpdated?: (card: InvoiceBoardCard) => void;
 };
 
 function formatPeriodLabel(start: string, end: string) {
   const startDate = parse(start, "yyyy-MM-dd", new Date());
   const endDate = parse(end, "yyyy-MM-dd", new Date());
   return `${format(startDate, "MMM d")} – ${format(endDate, "MMM d, yyyy")}`;
+}
+
+function statusLabel(status: string) {
+  return status.replaceAll("_", " ");
 }
 
 function InvoiceTotals({
@@ -68,61 +75,65 @@ function InvoiceTotals({
   );
 }
 
-export function InvoiceDraftSheet({
-  ongoing,
+export function InvoiceEditSheet({
+  invoice,
   open,
   onOpenChange,
-  onInvoiceCreated,
-}: InvoiceDraftSheetProps) {
+  onInvoiceUpdated,
+}: InvoiceEditSheetProps) {
   const [lineItems, setLineItems] = useState<EditableLineItem[]>([]);
+  const [discountAmount, setDiscountAmount] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const initialItems = useMemo(() => {
-    if (!ongoing) return [];
-    return ongoing.templateLineItems.map((item) => ({
+    if (!invoice) return [];
+    return invoice.line_items.map((item) => ({
       description: item.description,
-      quantity: item.quantity,
-      unitPrice: item.unit_price,
+      quantity: Number(item.quantity),
+      unitPrice: Number(item.unit_price),
     }));
-  }, [ongoing]);
+  }, [invoice]);
 
   useEffect(() => {
     setLineItems(initialItems);
-  }, [initialItems]);
+    setDiscountAmount(Number(invoice?.discount_amount ?? 0));
+  }, [initialItems, invoice]);
 
   const subtotal = lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-  const discount = ongoing?.defaultDiscountAmount ?? 0;
-  const total = Math.max(0, subtotal - discount);
+  const total = Math.max(0, subtotal - discountAmount);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!ongoing || isSubmitting) return;
+    if (!invoice || isSubmitting) return;
 
     const formData = new FormData(event.currentTarget);
     formData.set("lineItems", JSON.stringify(lineItems));
+    formData.set("discountAmount", String(discountAmount));
 
     setIsSubmitting(true);
     try {
-      const result = await createInvoiceFromServiceAction(formData);
-      if (result.invoiceCard) {
-        onInvoiceCreated?.(result.invoiceCard);
+      const result = await updateInvoiceAction(formData);
+      if (result.ok && result.invoiceCard) {
+        onInvoiceUpdated?.(result.invoiceCard);
         onOpenChange(false);
-        toast.success("Invoice saved — moved to Draft");
+        toast.success("Invoice updated");
         return;
       }
-      if (!result.ok) {
-        toast.error("Could not save draft invoice. Please try again.");
-      }
+      toast.error("Could not save invoice. Please try again.");
     } catch {
-      toast.error("Could not save draft invoice. Please try again.");
+      toast.error("Could not save invoice. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (!ongoing) return null;
+  if (!invoice) return null;
 
-  const periodLabel = formatPeriodLabel(ongoing.periodStart, ongoing.periodEnd);
+  const periodLabel = formatPeriodLabel(
+    invoice.service_period_start,
+    invoice.service_period_end,
+  );
+  const paidSoFar = invoice.payments.reduce((sum, p) => sum + Number(p.amount), 0);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -133,48 +144,104 @@ export function InvoiceDraftSheet({
               <FileText className="size-5" />
             </div>
             <div className="min-w-0 space-y-1">
-              <SheetTitle className="text-lg">Create draft invoice</SheetTitle>
+              <SheetTitle className="text-lg">Edit invoice</SheetTitle>
               <SheetDescription className="line-clamp-2">
-                {ongoing.clientName} · {ongoing.invoiceName}
+                {invoice.client.name} · {invoice.invoice_number}
               </SheetDescription>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
+            <Badge variant="secondary" className="font-normal capitalize">
+              {statusLabel(invoice.status)}
+            </Badge>
             <Badge variant="secondary" className="gap-1 font-normal">
               <CalendarDays className="size-3" />
               {periodLabel}
             </Badge>
             <Badge variant="outline" className="font-normal">
-              Billing day {ongoing.anchorDay}
+              {invoice.currency}
             </Badge>
-            <Badge variant="outline" className="font-normal">
-              {ongoing.defaultPaymentTermsDays} day terms
-            </Badge>
-            <Badge variant="outline" className="font-normal">
-              {ongoing.currency}
-            </Badge>
+            {paidSoFar > 0 ? (
+              <Badge variant="outline" className="font-normal">
+                Paid {formatMoney(invoice.currency, paidSoFar)}
+              </Badge>
+            ) : null}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link
+                href={`/api/invoices/${invoice.id}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <FileDown className="size-3.5" />
+                View PDF
+              </Link>
+            </Button>
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link
+                href={`/api/invoices/${invoice.id}/docx`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <FileText className="size-3.5" />
+                View DOCX
+              </Link>
+            </Button>
           </div>
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <input type="hidden" name="scheduleId" value={ongoing.scheduleId} />
-          <input type="hidden" name="periodStart" value={ongoing.periodStart} />
-          <input type="hidden" name="periodEnd" value={ongoing.periodEnd} />
-          <input type="hidden" name="discountAmount" value={discount} />
+          <input type="hidden" name="invoiceId" value={invoice.id} />
 
           <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="mb-4 grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="issueDate">Issue date</Label>
+                <Input
+                  id="issueDate"
+                  name="issueDate"
+                  type="date"
+                  required
+                  defaultValue={invoice.issue_date}
+                  key={`issue-${invoice.id}-${invoice.issue_date}`}
+                />
+              </div>
+              <div>
+                <Label htmlFor="dueDate">Due date</Label>
+                <Input
+                  id="dueDate"
+                  name="dueDate"
+                  type="date"
+                  required
+                  defaultValue={invoice.due_date}
+                  key={`due-${invoice.id}-${invoice.due_date}`}
+                />
+              </div>
+            </div>
             <LineItemsEditor
               items={lineItems}
               onChange={setLineItems}
-              currency={ongoing.currency}
+              currency={invoice.currency}
             />
+            <div className="mt-4">
+              <Label htmlFor="discountAmount">Discount</Label>
+              <Input
+                id="discountAmount"
+                type="number"
+                min={0}
+                step="0.01"
+                value={discountAmount}
+                onChange={(e) => setDiscountAmount(Number(e.target.value) || 0)}
+              />
+            </div>
           </div>
 
           <SheetFooter className="shrink-0 flex-col gap-4 border-t bg-muted/30 px-6 py-5 sm:flex-col">
             <InvoiceTotals
-              currency={ongoing.currency}
+              currency={invoice.currency}
               subtotal={subtotal}
-              discount={discount}
+              discount={discountAmount}
               total={total}
             />
             <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -185,7 +252,7 @@ export function InvoiceDraftSheet({
               </SheetClose>
               <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="animate-spin" /> : null}
-                {isSubmitting ? "Creating draft..." : "Save draft invoice"}
+                {isSubmitting ? "Saving..." : "Save changes"}
               </Button>
             </div>
           </SheetFooter>
