@@ -24,6 +24,7 @@ import { FileDown, FileText, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import { moveInvoiceToOngoingAction, updateInvoiceBoardStageAction } from "@/app/actions";
 import { CreateServiceDialog } from "@/components/create-service-dialog";
+import { PageHeader } from "@/components/page-header";
 import { InvoiceDraftSheet } from "@/components/invoice-draft-sheet";
 import { InvoiceEditSheet } from "@/components/invoice-edit-sheet";
 import { RecordPaymentDialog } from "@/components/record-payment-dialog";
@@ -34,6 +35,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { buildOngoingServiceCard, invoiceToBoardStage } from "@/lib/billing-board";
 import { formatMoney } from "@/lib/format-money";
+import { boardColumnStyles } from "@/lib/theme/board-columns";
 import { cn } from "@/lib/utils";
 import type {
   BillingBoardCard,
@@ -126,16 +128,19 @@ function BoardColumn({
   onEditInvoice: (invoice: InvoiceWithDetails) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: stage });
+  const accent = boardColumnStyles[stage];
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "flex w-[260px] shrink-0 flex-col rounded-lg border p-3 transition-colors",
-        isOver ? "border-primary/40 bg-primary/5" : "bg-card",
+        "flex w-[260px] shrink-0 flex-col rounded-lg border border-t-[3px] p-3 transition-colors",
+        accent.column,
+        isOver ? "border-primary/50 bg-primary/10 ring-2 ring-primary/20" : "",
       )}
     >
-      <p className="mb-3 shrink-0 text-sm font-semibold">
+      <p className={cn("mb-3 flex shrink-0 items-center gap-2 text-sm font-semibold", accent.header)}>
+        <span className={cn("size-2 shrink-0 rounded-full", accent.dot)} aria-hidden />
         {label} ({cards.length})
       </p>
       <div className="min-h-[140px] flex-1 space-y-2">
@@ -209,6 +214,7 @@ function OngoingServiceCardView({
         <p>Billing day: {card.anchorDay}</p>
         <Button
           type="button"
+          variant="highlight"
           size="sm"
           className="w-full"
           onClick={() => onCreateInvoice(card)}
@@ -272,14 +278,14 @@ function DraggableInvoiceCard({
           <p className="text-muted-foreground">{invoice.client.name}</p>
           <p className="font-medium">{formatMoney(invoice.currency, invoice.total)}</p>
           <div className="flex flex-wrap gap-1">
-            {isPartial ? <Badge variant="secondary">Partial payment</Badge> : null}
-            {invoice.month_closed ? <Badge variant="outline">Month closed</Badge> : null}
+            {isPartial ? <Badge variant="warning">Partial payment</Badge> : null}
+            {invoice.month_closed ? <Badge variant="info">Month closed</Badge> : null}
           </div>
         </button>
         <div className="flex flex-col gap-1">
           <Button
             type="button"
-            variant="outline"
+            variant="accent"
             size="sm"
             className="w-full"
             onClick={(e) => {
@@ -616,14 +622,10 @@ function BoardHeader({
 }) {
   const router = useRouter();
   return (
-    <div className="flex min-w-0 flex-wrap items-end justify-between gap-4">
-      <div className="min-w-0">
-        <h1 className="text-xl font-semibold">Monthly billing board</h1>
-        <p className="text-sm text-muted-foreground">
-          New invoices appear in Ongoing Services right away — create drafts and track them
-          through payment.
-        </p>
-      </div>
+    <PageHeader
+      title="Monthly billing board"
+      description="New invoices appear in Ongoing Services right away — create drafts and track them through payment."
+    >
       <div className="flex flex-wrap items-center gap-2">
         <form
           className="flex items-center gap-2"
@@ -634,7 +636,7 @@ function BoardHeader({
           }}
         >
           <Input type="month" name="month" defaultValue={data.month} className="w-[160px]" />
-          <Button type="submit" variant="outline" size="sm">
+          <Button type="submit" variant="accent" size="sm">
             Go
           </Button>
         </form>
@@ -644,7 +646,7 @@ function BoardHeader({
           onServiceCreated={onServiceCreated}
         />
       </div>
-    </div>
+    </PageHeader>
   );
 }
 

@@ -1,8 +1,11 @@
 "use client";
 
 import { format } from "date-fns";
+import { Wallet } from "lucide-react";
 import { recordPaymentAction } from "@/app/actions";
+import { ModalPanelHeader } from "@/components/modal-panel-header";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatMoney } from "@/lib/format-money";
+import { modalContent } from "@/lib/theme/ui-styles";
 import type { InvoiceWithDetails } from "@/lib/types";
 
 type RecordPaymentDialogProps = {
@@ -33,24 +37,26 @@ export function RecordPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className={modalContent}>
+        <DialogHeader className="sr-only">
           <DialogTitle>Record payment</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            {invoice.invoice_number} — {invoice.client.name}
-          </p>
         </DialogHeader>
+        <ModalPanelHeader
+          icon={Wallet}
+          title="Record payment"
+          description={`${invoice.invoice_number} — ${invoice.client.name}`}
+        >
+          <Badge variant="warning">Outstanding: {formatMoney(invoice.currency, remaining)}</Badge>
+          <Badge variant="info">{invoice.currency}</Badge>
+        </ModalPanelHeader>
         <form
           action={async (formData) => {
             await recordPaymentAction(formData);
             onOpenChange(false);
           }}
-          className="grid gap-4"
+          className="grid gap-4 px-4 py-4"
         >
           <input type="hidden" name="invoiceId" value={invoice.id} />
-          <p className="text-sm">
-            Outstanding: {formatMoney(invoice.currency, remaining)}
-          </p>
           <div>
             <Label htmlFor="amount">Amount</Label>
             <Input
@@ -71,12 +77,13 @@ export function RecordPaymentDialog({
             <Label htmlFor="paidAt">Paid on</Label>
             <Input id="paidAt" name="paidAt" type="date" defaultValue={today} required />
           </div>
-          
           <div>
             <Label htmlFor="note">Note</Label>
             <Input id="note" name="note" placeholder="Optional" />
           </div>
-          <FormSubmitButton pendingLabel="Saving payment...">Record payment</FormSubmitButton>
+          <FormSubmitButton variant="success" pendingLabel="Saving payment...">
+            Record payment
+          </FormSubmitButton>
         </form>
       </DialogContent>
     </Dialog>

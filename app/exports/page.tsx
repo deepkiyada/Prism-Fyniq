@@ -1,4 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
+import { PageHeader } from "@/components/page-header";
+import { ThemedCard } from "@/components/themed-card";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -8,6 +11,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listInvoices } from "@/lib/data";
+import { invoiceStatusBadgeVariant } from "@/lib/theme/invoice-status";
+import { textLink } from "@/lib/theme/ui-styles";
 
 export const dynamic = "force-dynamic";
 
@@ -23,67 +28,62 @@ export default async function ExportsPage() {
 
   return (
     <main className="flex flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Export Center</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Download branded Prism Fyniq invoices in PDF or DOCX format.
-        </CardContent>
-      </Card>
+      <PageHeader
+        title="Export center"
+        description="Download branded Prism Fyniq invoices in PDF or DOCX format."
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Invoice Files</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {error ? (
-            <p className="text-sm text-destructive">{error}</p>
-          ) : (
-            <Table>
-              <TableHeader>
+      <ThemedCard title="Invoice files" tone="highlight">
+        {error ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Invoice #</TableHead>
+                <TableHead>Client</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+                <TableHead>Downloads</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {invoices.length === 0 ? (
                 <TableRow>
-                  <TableHead>Invoice #</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead>Downloads</TableHead>
+                  <TableCell colSpan={5} className="text-muted-foreground">
+                    No invoices available.
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoices.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground">
-                      No invoices available.
+              ) : (
+                invoices.map((invoice) => (
+                  <TableRow key={invoice.id}>
+                    <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+                    <TableCell>{invoice.client.name}</TableCell>
+                    <TableCell>
+                      <Badge variant={invoiceStatusBadgeVariant(invoice.status)} className="capitalize">
+                        {invoice.status.replaceAll("_", " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {invoice.currency} {invoice.total.toFixed(2)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-3 text-sm">
+                        <Link className={textLink} href={`/api/invoices/${invoice.id}/pdf`} target="_blank">
+                          PDF
+                        </Link>
+                        <Link className={textLink} href={`/api/invoices/${invoice.id}/docx`} target="_blank">
+                          DOCX
+                        </Link>
+                      </div>
                     </TableCell>
                   </TableRow>
-                ) : (
-                  invoices.map((invoice) => (
-                    <TableRow key={invoice.id}>
-                      <TableCell>{invoice.invoice_number}</TableCell>
-                      <TableCell>{invoice.client.name}</TableCell>
-                      <TableCell>{invoice.status.replaceAll("_", " ")}</TableCell>
-                      <TableCell className="text-right">
-                        {invoice.currency} {invoice.total.toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-3 text-sm">
-                          <a className="underline" href={`/api/invoices/${invoice.id}/pdf`} target="_blank">
-                            PDF
-                          </a>
-                          <a className="underline" href={`/api/invoices/${invoice.id}/docx`} target="_blank">
-                            DOCX
-                          </a>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </ThemedCard>
     </main>
   );
 }

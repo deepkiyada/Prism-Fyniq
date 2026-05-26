@@ -49,7 +49,7 @@ export function LineItemsEditor({
             {items.length} {items.length === 1 ? "row" : "rows"}
           </p>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={addItem}>
+        <Button type="button" variant="accent" size="sm" onClick={addItem}>
           <Plus className="size-4" />
           Add row
         </Button>
@@ -58,7 +58,7 @@ export function LineItemsEditor({
         {items.map((item, index) => (
           <div
             key={index}
-            className="relative rounded-lg border bg-muted/20 p-4 shadow-xs"
+            className="relative rounded-lg border border-primary/10 bg-accent/25 p-4 shadow-xs ring-1 ring-primary/5"
           >
             <div className="mb-3 flex items-start justify-between gap-2">
               <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-background text-xs font-medium text-muted-foreground ring-1 ring-border">

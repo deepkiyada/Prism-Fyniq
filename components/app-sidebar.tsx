@@ -75,7 +75,7 @@ export function AppSidebar({
             <BrandMark subtitle="Agency Billing" />
           </SidebarGroupLabel>
           <SidebarSeparator className="mb-2" />
-          <SidebarGroupLabel className="px-2 text-[11px] uppercase tracking-wide text-muted-foreground group-data-[collapsible=icon]:opacity-0">
+          <SidebarGroupLabel className="px-2 text-[11px] font-semibold uppercase tracking-wide text-primary/70 group-data-[collapsible=icon]:opacity-0">
             Navigation
           </SidebarGroupLabel>
           <SidebarGroupContent>

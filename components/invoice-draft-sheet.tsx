@@ -6,6 +6,7 @@ import { CalendarDays, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createInvoiceFromServiceAction } from "@/app/actions";
 import { LineItemsEditor, type EditableLineItem } from "@/components/line-items-editor";
+import { ModalPanelHeader } from "@/components/modal-panel-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -13,12 +14,11 @@ import {
   Sheet,
   SheetClose,
   SheetContent,
-  SheetDescription,
   SheetFooter,
-  SheetHeader,
-  SheetTitle,
 } from "@/components/ui/sheet";
 import { formatMoney } from "@/lib/format-money";
+import { sheetFooter } from "@/lib/theme/ui-styles";
+import { cn } from "@/lib/utils";
 import type { InvoiceBoardCard, OngoingServiceCard } from "@/lib/types";
 
 type InvoiceDraftSheetProps = {
@@ -126,35 +126,26 @@ export function InvoiceDraftSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:w-1/2 sm:max-w-none">
-        <SheetHeader className="shrink-0 border-b px-6 py-5">
-          <div className="flex items-start gap-3 pr-8">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <FileText className="size-5" />
-            </div>
-            <div className="min-w-0 space-y-1">
-              <SheetTitle className="text-lg">Create draft invoice</SheetTitle>
-              <SheetDescription className="line-clamp-2">
-                {ongoing.clientName} · {ongoing.invoiceName}
-              </SheetDescription>
-            </div>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Badge variant="secondary" className="gap-1 font-normal">
-              <CalendarDays className="size-3" />
-              {periodLabel}
-            </Badge>
-            <Badge variant="outline" className="font-normal">
-              Billing day {ongoing.anchorDay}
-            </Badge>
-            <Badge variant="outline" className="font-normal">
-              {ongoing.defaultPaymentTermsDays} day terms
-            </Badge>
-            <Badge variant="outline" className="font-normal">
-              {ongoing.currency}
-            </Badge>
-          </div>
-        </SheetHeader>
+      <SheetContent className="flex w-full max-w-none! flex-col gap-0 overflow-hidden p-0 sm:w-1/2!">
+        <ModalPanelHeader
+          icon={FileText}
+          title="Create draft invoice"
+          description={`${ongoing.clientName} · ${ongoing.invoiceName}`}
+        >
+          <Badge variant="accent" className="gap-1 font-normal">
+            <CalendarDays className="size-3" />
+            {periodLabel}
+          </Badge>
+          <Badge variant="highlight" className="font-normal">
+            Billing day {ongoing.anchorDay}
+          </Badge>
+          <Badge variant="outline" className="font-normal">
+            {ongoing.defaultPaymentTermsDays} day terms
+          </Badge>
+          <Badge variant="info" className="font-normal">
+            {ongoing.currency}
+          </Badge>
+        </ModalPanelHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <input type="hidden" name="scheduleId" value={ongoing.scheduleId} />
@@ -170,7 +161,7 @@ export function InvoiceDraftSheet({
             />
           </div>
 
-          <SheetFooter className="shrink-0 flex-col gap-4 border-t bg-muted/30 px-6 py-5 sm:flex-col">
+          <SheetFooter className={cn("shrink-0 flex-col gap-4 px-6 py-5 sm:flex-col", sheetFooter)}>
             <InvoiceTotals
               currency={ongoing.currency}
               subtotal={subtotal}
@@ -183,7 +174,7 @@ export function InvoiceDraftSheet({
                   Cancel
                 </Button>
               </SheetClose>
-              <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting}>
+              <Button type="submit" variant="highlight" className="w-full sm:w-auto" disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="animate-spin" /> : null}
                 {isSubmitting ? "Creating draft..." : "Save draft invoice"}
               </Button>

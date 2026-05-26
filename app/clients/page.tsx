@@ -1,6 +1,7 @@
 import { createClientAction } from "@/app/actions";
 import { CurrencySelect } from "@/components/currency-select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
+import { ThemedCard } from "@/components/themed-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -28,83 +29,78 @@ export default async function ClientsPage() {
 
   return (
     <main className="flex flex-col gap-6">
-      <section>
-        <h1 className="text-xl font-semibold">Clients</h1>
-        <p className="text-sm text-muted-foreground">
-          Register clients before adding invoices on the billing board.
-        </p>
-      </section>
-      <Card>
-        <CardHeader>
-          <CardTitle>Add client</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form action={createClientAction} className="grid gap-4 md:grid-cols-2">
-            <div>
-              <Label htmlFor="name">Client name</Label>
-              <Input id="name" name="name" required placeholder="Acme Corp" />
-            </div>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" placeholder="billing@client.com" />
-            </div>
-            <div className="md:col-span-2">
-              <Label htmlFor="billingAddress">Billing address</Label>
-              <Input id="billingAddress" name="billingAddress" placeholder="Street, City, ZIP" />
-            </div>
-            <div>
-              <Label htmlFor="notes">Notes</Label>
-              <Input id="notes" name="notes" placeholder="Optional note" />
-            </div>
-            <div>
-              <CurrencySelect />
-            </div>
-            <div className="md:col-span-2">
-              <FormSubmitButton pendingLabel="Saving client...">Save client</FormSubmitButton>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      <PageHeader
+        title="Clients"
+        description="Register clients before adding invoices on the billing board."
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Existing Clients</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {error ? (
-            <p className="text-sm text-destructive">{error}</p>
-          ) : (
-            <Table>
-              <TableHeader>
+      <ThemedCard title="Add client" tone="accent">
+        <form action={createClientAction} className="grid gap-4 md:grid-cols-2">
+          <div>
+            <Label htmlFor="name">Client name</Label>
+            <Input id="name" name="name" required placeholder="Acme Corp" />
+          </div>
+          <div>
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" name="email" type="email" placeholder="billing@client.com" />
+          </div>
+          <div className="md:col-span-2">
+            <Label htmlFor="billingAddress">Billing address</Label>
+            <Input id="billingAddress" name="billingAddress" placeholder="Street, City, ZIP" />
+          </div>
+          <div>
+            <Label htmlFor="notes">Notes</Label>
+            <Input id="notes" name="notes" placeholder="Optional note" />
+          </div>
+          <div>
+            <CurrencySelect />
+          </div>
+          <div className="md:col-span-2">
+            <FormSubmitButton variant="highlight" pendingLabel="Saving client...">
+              Save client
+            </FormSubmitButton>
+          </div>
+        </form>
+      </ThemedCard>
+
+      <ThemedCard title="Existing clients" tone="info">
+        {error ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Currency</TableHead>
+                <TableHead>Address</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {clients.length === 0 ? (
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Currency</TableHead>
-                  <TableHead>Address</TableHead>
+                  <TableCell colSpan={4} className="text-muted-foreground">
+                    No clients yet.
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {clients.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-muted-foreground">
-                      No clients yet.
+              ) : (
+                clients.map((client) => (
+                  <TableRow key={client.id}>
+                    <TableCell className="font-medium text-foreground">{client.name}</TableCell>
+                    <TableCell>{client.email ?? "-"}</TableCell>
+                    <TableCell>
+                      <span className="rounded-md bg-info-muted px-2 py-0.5 text-xs font-medium text-info">
+                        {client.currency}
+                      </span>
                     </TableCell>
+                    <TableCell>{client.billing_address ?? "-"}</TableCell>
                   </TableRow>
-                ) : (
-                  clients.map((client) => (
-                    <TableRow key={client.id}>
-                      <TableCell>{client.name}</TableCell>
-                      <TableCell>{client.email ?? "-"}</TableCell>
-                      <TableCell>{client.currency}</TableCell>
-                      <TableCell>{client.billing_address ?? "-"}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </ThemedCard>
     </main>
   );
 }

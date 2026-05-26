@@ -8,7 +8,16 @@ type FormSubmitButtonProps = {
   children: React.ReactNode;
   pendingLabel?: string;
   className?: string;
-  variant?: "default" | "outline" | "secondary" | "ghost" | "destructive" | "link";
+  variant?:
+    | "default"
+    | "accent"
+    | "highlight"
+    | "success"
+    | "outline"
+    | "secondary"
+    | "ghost"
+    | "destructive"
+    | "link";
   size?: "default" | "sm" | "lg" | "xs" | "icon" | "icon-xs" | "icon-sm" | "icon-lg";
   disabled?: boolean;
   form?: string;

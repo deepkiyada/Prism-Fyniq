@@ -10,15 +10,23 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        accent: "bg-accent text-accent-foreground ring-1 ring-primary/15 [a]:hover:bg-accent/85",
+        highlight:
+          "bg-highlight text-highlight-foreground ring-1 ring-primary/20 [a]:hover:bg-highlight/90",
         secondary:
-          "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
+          "bg-secondary text-secondary-foreground ring-1 ring-primary/10 [a]:hover:bg-secondary/85",
+        info: "bg-info-muted text-info ring-1 ring-info/20 [a]:hover:bg-info-muted/80",
+        success:
+          "bg-success-muted text-success ring-1 ring-success/20 [a]:hover:bg-success-muted/80",
+        warning:
+          "bg-warning-muted text-warning-foreground ring-1 ring-warning/25 [a]:hover:bg-warning-muted/80",
         destructive:
           "bg-destructive/10 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive/20",
         outline:
-          "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
+          "border-primary/20 text-foreground [a]:hover:border-primary/35 [a]:hover:bg-accent/40 [a]:hover:text-accent-foreground",
         ghost:
-          "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
-        link: "text-primary underline-offset-4 hover:underline",
+          "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground dark:hover:bg-accent/30",
+        link: "text-primary underline-offset-4 hover:text-highlight-foreground hover:underline",
       },
     },
     defaultVariants: {

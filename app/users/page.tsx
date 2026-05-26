@@ -1,10 +1,12 @@
 import { updateUserRoleAction } from "@/app/users/actions";
+import { PageHeader } from "@/components/page-header";
+import { ThemedCard } from "@/components/themed-card";
 import { requireSuperAdmin } from "@/lib/authz";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { AppUser } from "@/lib/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateUserDialog } from "@/components/create-user-dialog";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -24,7 +26,9 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
   await requireSuperAdmin();
   const params = await searchParams;
   const supabase = getSupabaseServerClient();
-  const isAdminConfigReady = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const isAdminConfigReady = Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
+  );
   const sanitizedError =
     params.error && params.error.includes("NEXT_REDIRECT")
       ? "Action was interrupted. Please retry. If it persists, reload the page."
@@ -40,27 +44,22 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
 
   return (
     <main className="flex flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Users & Roles</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Super admins can create users, view all users, and assign role access.
-        </CardContent>
-      </Card>
+      <PageHeader
+        title="Users & roles"
+        description="Super admins can create users, view all users, and assign role access."
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>User Onboarding</CardTitle>
-        </CardHeader>
-        <CardContent className="flex items-center justify-between gap-4">
+      <ThemedCard title="User onboarding" tone="accent">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
             Create users via modal to keep this page clean and focused.
-            {!isAdminConfigReady ? " Configure SUPABASE_SERVICE_ROLE_KEY in .env.local to enable this." : ""}
+            {!isAdminConfigReady
+              ? " Configure SUPABASE_SERVICE_ROLE_KEY in .env.local to enable this."
+              : ""}
           </p>
           <CreateUserDialog disabled={!isAdminConfigReady} />
-        </CardContent>
-      </Card>
+        </div>
+      </ThemedCard>
 
       {sanitizedError ? (
         <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -69,60 +68,59 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
       ) : null}
 
       {params.message ? (
-        <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700">
+        <p className="rounded-md border border-success/30 bg-success-muted px-3 py-2 text-sm text-success">
           {params.message}
         </p>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Users</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadError ? (
-            <p className="text-sm text-destructive">{loadError}</p>
-          ) : (
-            <Table>
-              <TableHeader>
+      <ThemedCard title="All users" tone="info">
+        {loadError ? (
+          <p className="text-sm text-destructive">{loadError}</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Email</TableHead>
+                <TableHead>Current role</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.length === 0 ? (
                 <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Current Role</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableCell colSpan={3} className="text-muted-foreground">
+                    No users found.
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-muted-foreground">
-                      No users found.
+              ) : (
+                users.map((user) => (
+                  <TableRow key={user.user_id}>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Badge variant={user.role === "super_admin" ? "highlight" : "accent"}>
+                        {user.role === "super_admin" ? "Super admin" : "Normal user"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <form action={updateUserRoleAction} className="inline-flex items-center gap-2">
+                        <input type="hidden" name="userId" value={user.user_id} />
+                        <input
+                          type="hidden"
+                          name="role"
+                          value={user.role === "super_admin" ? "user" : "super_admin"}
+                        />
+                        <FormSubmitButton variant="outline" size="sm" pendingLabel="Updating...">
+                          {user.role === "super_admin" ? "Set as normal user" : "Make super admin"}
+                        </FormSubmitButton>
+                      </form>
                     </TableCell>
                   </TableRow>
-                ) : (
-                  users.map((user) => (
-                    <TableRow key={user.user_id}>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>{user.role === "super_admin" ? "Super admin" : "Normal user"}</TableCell>
-                      <TableCell className="text-right">
-                        <form action={updateUserRoleAction} className="inline-flex items-center gap-2">
-                          <input type="hidden" name="userId" value={user.user_id} />
-                          <input
-                            type="hidden"
-                            name="role"
-                            value={user.role === "super_admin" ? "user" : "super_admin"}
-                          />
-                          <FormSubmitButton variant="outline" size="sm" pendingLabel="Updating...">
-                            {user.role === "super_admin" ? "Set as Normal User" : "Make Super Admin"}
-                          </FormSubmitButton>
-                        </form>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </ThemedCard>
     </main>
   );
 }
